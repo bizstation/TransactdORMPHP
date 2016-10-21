@@ -14,6 +14,7 @@
             "email": "transactd@bizstation.jp"
         }
     ],
+    "minimum-stability": "dev",
     "require": {
         "php": ">=5.5.0",
         "ext-transactd":"*"
@@ -24,6 +25,5 @@
             "transactd\\": "src/"
         },
         "classmap": ["transactd.php"]
-    },
-    "include-path": ["src/"]
+    }
 }
