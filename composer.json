@@ -24,5 +24,6 @@
         "psr-4": {
             "transactd\\": "src/"
         }
-    }
+    },
+    "include-path": ["src/"]
 }
