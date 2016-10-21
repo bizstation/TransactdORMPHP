@@ -14,7 +14,7 @@
             "email": "transactd@bizstation.jp"
         }
     ],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "require": {
         "php": ">=5.5.0",
         "ext-transactd":"*"
