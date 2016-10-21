@@ -2,7 +2,13 @@
 
 namespace Transactd;
 
-$pluralDictionary = array('child' => 'children',
+require_once('transactd.php');
+
+$pluralDictionary = null;
+
+function getPluralDictionary()
+{
+    return array('child' => 'children',
                             'person' => 'people',
                             'man' => 'men',
                             'tooth' => 'teeth',
@@ -13,13 +19,17 @@ $pluralDictionary = array('child' => 'children',
                             'ox' => 'oxen',
                             'datum' => 'data',
                             'index' => 'indeces',
-                            'appendix' => 'appendices', );
+                            'appendix' => 'appendices');
+}
 
 function getPlural($tableName)
 {
     global $pluralDictionary;
     if (function_exists('str_plural')) {
         return str_plural($tableName);
+    }
+    if ($pluralDictionary === null) {
+        $pluralDictionary = getPluralDictionary();
     }
     $s = mb_substr($tableName, -1);
     if ($s === 's' || $s === 'x' || $s === 'z') {

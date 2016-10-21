@@ -2,6 +2,7 @@
 
 namespace Transactd;
 
+use BizStation\Transactd\transactd;
 use Transactd\QueryExecuter;
 
 class CachedQueryExecuter extends QueryExecuter
