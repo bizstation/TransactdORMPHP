@@ -2,7 +2,7 @@
     "name": "transactd/orm",
     "description": "Transactd ORM",
     "type": "library",
-    "license": "GPLv2",
+    "license": "MIT",
     "homepage":"http://www.bizstation.jp/en/transactd/",
     "support": {
         "issues": "https://github.com/bizstation/TransactdORMPHP/issues",
