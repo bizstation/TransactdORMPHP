@@ -591,7 +591,7 @@ class Model
             }
             return $reflectionMethod->invoke(self::queryExecuter());
         }
-
+        
         if (method_exists(get_called_class(), 'scope'.$name)) {
             $obj = new static(null);
             $q = self::queryExecuter();

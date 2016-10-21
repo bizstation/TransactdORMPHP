@@ -2,10 +2,11 @@
 
 namespace Transactd;
 
-require_once 'transactd.php';
+/*require_once 'transactd.php';
 require_once 'Model.php';
 require_once 'Relation.php';
 require_once 'QueryExecuter.php';
+require_once 'CachedQueryExecuter.php';
 require_once 'IOException.php';
 require_once 'ModelNotFoundException.php';
 require_once 'ModelUserCancelException.php';
@@ -14,6 +15,7 @@ require_once 'AggregateFunction.php';
 require_once 'Collection.php';
 require_once 'CollectionIterator.php';
 require_once 'Serializer.php';
+ */
 
 
 use BizStation\Transactd\pooledDbManager;

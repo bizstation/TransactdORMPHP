@@ -22,7 +22,7 @@
     "keywords": ["Transactd", "ORM"], 
     "autoload": {
         "psr-4": {
-            "transactd\\": "src/"
+            "Transactd\\": "src/"
         }
     },
     "include-path": ["src/"]
