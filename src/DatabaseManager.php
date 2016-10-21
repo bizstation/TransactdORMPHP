@@ -2,7 +2,7 @@
 
 namespace Transactd;
 
-require_once 'transactd.php';
+require_once(__DIR__ .'/Require.php');
 
 use BizStation\Transactd\pooledDbManager;
 use BizStation\Transactd\connectParams;

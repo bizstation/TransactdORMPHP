@@ -2,7 +2,7 @@
 
 namespace Transactd;
 
-require_once('transactd.php');
+require_once(__DIR__ .'/Require.php');
 
 $pluralDictionary = null;
 
