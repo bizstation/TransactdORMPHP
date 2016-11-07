@@ -4,6 +4,12 @@ namespace Transactd;
 
 class Serializer
 {
+    /**
+     * Specified array returns whether or not the hash.
+     * 
+     * @param array $array
+     * @return bool
+     */
     public static function isHash(&$array)
     {
         $i = 0;
@@ -47,8 +53,14 @@ class Serializer
         }
         return $s;
     }
-
-    public static function getTypeValue($v)
+    
+    /**
+     * Change object types by 'className'.
+     * 
+     * @param object $v
+     * @return object
+     */
+    public static function chengeObjectType($v)
     {
         if (is_object($v)) {
             if (array_key_exists('className', $v) === true) {
@@ -73,6 +85,12 @@ class Serializer
         return $v;
     }
 
+    /**
+     * Serializes to JSON string.
+     * 
+     * @param object $obj
+     * @return string
+     */
     public static function serialize($obj)
     {
         $s = '{';
@@ -82,8 +100,9 @@ class Serializer
                 $s .= json_encode($value).',';
             }
         }
-        if (is_object($obj) && property_exists($obj,  'serialize')) {
-            foreach ($obj->serialize as $key) {
+		$className = get_class($obj);
+        if (is_object($obj) && property_exists($className,  'serialize')) {
+            foreach ($className::$serialize as $key) {
                 $s .= '"'.$key.'":';
                 $s .= json_encode($obj->{$key}).',';
             }
@@ -91,9 +110,15 @@ class Serializer
         return substr($s, 0, -1).'}';
     }
 
+    /**
+     * Deserializes from JSON string.
+     * 
+     * @param string $json
+     * @return object
+     */
     public static function deSerialize($json)
     {
         $obj = json_decode($json, false);
-        return self::getTypeValue($obj);
+        return self::chengeObjectType($obj);
     }
 }

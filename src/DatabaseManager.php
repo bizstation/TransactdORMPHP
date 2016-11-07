@@ -4,10 +4,26 @@ namespace Transactd;
 
 require_once(__DIR__ .'/Require.php');
 
-use BizStation\Transactd\pooledDbManager;
-use BizStation\Transactd\connectParams;
-use BizStation\Transactd\transactd;
+use BizStation\Transactd\Transactd;
+use BizStation\Transactd\PooledDbManager;
+use BizStation\Transactd\ConnectParams;
 
+/**
+ * @method \BizStation\Transactd\Database master() 
+ * @method \BizStation\Transactd\Database slave() 
+ * @method QueryExecuter queryExecuter(string $tableName, string $className = 'stdClass')
+ * @method CachedQueryExecuter cachedQueryExecuter(string $tableName, string $className = 'stdClass')
+ * @method \BizStation\Transactd\Table table(string $tableName)
+ * @method void beginTrn(int $bias = null)
+ * @method void endTrn() 
+ * @method void abortTrn()
+ * @method void beginTransaction(int $bias = null)
+ * @method void commit() 
+ * @method void rollBack()
+ * @method void beginSnapshot(int $bias = Transactd::CONSISTENT_READ)
+ * @method void endSnapshot()
+
+ */
 class DatabaseManager
 {
     public static $tableCash = false;
@@ -23,17 +39,17 @@ class DatabaseManager
     private function doConnect($urim, $uris)
     {
         if ($urim != '') {
-            pooledDbManager::setMaxConnections(pooledDbManager::maxConnections() + 1);
-            $uri = new connectParams($urim);
+            PooledDbManager::setMaxConnections(PooledDbManager::maxConnections() + 1);
+            $uri = new ConnectParams($urim);
             $this->urim = $uri;
-            $this->pdm = new pooledDbManager();
+            $this->pdm = new PooledDbManager();
             $this->pdm->c_use($uri);
         }
         if ($uris != '') {
-            pooledDbManager::setMaxConnections(pooledDbManager::maxConnections() + 1);
-            $uri = new connectParams($uris);
+            PooledDbManager::setMaxConnections(PooledDbManager::maxConnections() + 1);
+            $uri = new ConnectParams($uris);
             $this->uris = $uri;
-            $this->pds = new pooledDbManager();
+            $this->pds = new PooledDbManager();
             $this->pds->c_use($uri);
         }
     }
@@ -48,7 +64,6 @@ class DatabaseManager
         if ($this->pds !== null) {
             return $this->pds->db();
         }
-
         return null;
     }
 
@@ -57,7 +72,6 @@ class DatabaseManager
         if (self::$tableCash === true) {
             return new CachedQueryExecuter($tableName, $this->pdm, $this->pds, $className);
         }
-
         return new CachedQueryExecuter($tableName, $this->_master(), $this->_slave(), $className);
     }
 
@@ -66,7 +80,6 @@ class DatabaseManager
         if (self::$tableCash === true) {
             return $this->pdm->table($tableName);
         }
-
         return $this->_master()->openTable($tableName);
     }
 
@@ -75,7 +88,6 @@ class DatabaseManager
         if (self::$tableCash === true) {
             return new QueryExecuter($tableName, $this->pdm, $this->pds, $className);
         }
-
         return new QueryExecuter($tableName, $this->_master(), $this->_slave(), $className);
     }
 
@@ -95,7 +107,7 @@ class DatabaseManager
         Model::clearTableCache();
     }
 
-    protected function _beginSnapshot($bias = transactd::CONSISTENT_READ)
+    protected function _beginSnapshot($bias = Transactd::CONSISTENT_READ)
     {
         return $this->pds->beginSnapshot($bias);
     }
@@ -125,12 +137,17 @@ class DatabaseManager
         if (method_exists('Transactd\DatabaseManager', '_'.$name)) {
             $reflectionMethod = new \ReflectionMethod($this, '_'.$name);
             $reflectionMethod->setAccessible(true);
-
             return $reflectionMethod->invokeArgs($this, $arguments);
         }
         throw new \BadMethodCallException($name);
     }
-
+    /**
+     * 
+     * @param string $urim Uri for master
+     * @param string $uris Uri for slave
+     * @param string $name Connection name
+     * @return self
+     */
     public static function connect($urim, $uris, $name = 'default')
     {
         if (!array_key_exists($name, self::$dbmArray)) {
@@ -139,21 +156,32 @@ class DatabaseManager
                 $dbm->name = $name;
                 $dbm->doConnect($urim, $uris);
                 self::$dbmArray[$name] = $dbm;
-
                 return $dbm;
             }
         }
     }
-
+    /**
+     * 
+     * @param string $name Connection name
+     * @return self
+     * @throws IOException
+     */
     public static function connection($name = 'default')
     {
         if (!array_key_exists($name, self::$dbmArray)) {
             throw new IOException('No connection', 1);
         }
-
         return self::$dbmArray[$name];
     }
-
+    /**
+     * Implemets of __callStatic. 
+     * When the name is object method , redirected to the default connection object.
+     * 
+     * @param string $name
+     * @param array $arguments
+     * @return mixed
+     * @throws \BadMethodCallException
+     */
     public static function __callStatic($name, $arguments)
     {
         if (method_exists('Transactd\DatabaseManager', '_'.$name)) {
@@ -165,3 +193,4 @@ class DatabaseManager
         throw new \BadMethodCallException($name);
     }
 }
+

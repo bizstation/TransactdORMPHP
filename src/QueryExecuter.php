@@ -2,11 +2,11 @@
 
 namespace Transactd;
 
-use BizStation\Transactd\transactd;
-use BizStation\Transactd\activeTable;
-use BizStation\Transactd\sortFields;
+use BizStation\Transactd\Transactd;
+use BizStation\Transactd\ActiveTable;
+use BizStation\Transactd\SortFields;
 
-transactd::setFieldValueMode(transactd::FIELD_VALUE_MODE_VALUE);
+Transactd::setFieldValueMode(Transactd::FIELD_VALUE_MODE_VALUE);
 
 class QueryExecuter
 {
@@ -41,34 +41,47 @@ class QueryExecuter
     protected $deleting = null;
     protected $deleted = null;
 
-    public function setEvent($name, $func)
+    /**
+     * Set a event function of CUD and save operations. 
+     * 
+     * @param string $name The event name.<br/>
+     *              ('creating', 'created')<br/>
+     *              ('updating', 'updated')<br/>
+     *              ('saving', 'saved')<br/>
+     *              ('deleting', 'deleted')<br/>
+     * @param string $class A static function class name of event handler. 
+     */
+    public function setEvent($name, $class)
     {
         if ($name === 'creating') {
-            $this->creating = $func;
+            $this->creating = $class;
         }
         if ($name === 'created') {
-            $this->created = $func;
+            $this->created = $class;
         }
         if ($name === 'updating') {
-            $this->updating = $func;
+            $this->updating = $class;
         }
         if ($name === 'updated') {
-            $this->updated = $func;
+            $this->updated = $class;
         }
         if ($name === 'saving') {
-            $this->saving = $func;
+            $this->saving = $class;
         }
         if ($name === 'saved') {
-            $this->saved = $func;
+            $this->saved = $class;
         }
         if ($name === 'deleting') {
-            $this->deleting = $func;
+            $this->deleting = $class;
         }
         if ($name === 'deleted') {
-            $this->deleted = $func;
+            $this->deleted = $class;
         }
     }
-
+    
+    /**
+     * Reset the execute paramators.
+     */
     public function reset()
     {
         $this->oprOrder = array();
@@ -93,11 +106,16 @@ class QueryExecuter
         }
         return false;
     }
-
+    
+    /**
+     * 
+     * @param BizStation\Transactd\Recordset $rs
+     * @return BizStation\Transactd\Recordset
+     */
     protected function setFetchClass($rs)
     {
         $rs->fetchClass = $this->tb->fetchClass;
-        $rs->fetchMode = transactd::FETCH_USR_CLASS;
+        $rs->fetchMode = Transactd::FETCH_USR_CLASS;
         return $rs;
     }
 
@@ -121,25 +139,55 @@ class QueryExecuter
             $this->keyFieldNameCache[$i] = $names;
         }
     }
-
+    
+    /**
+     * Get the array of primary key field number.
+     * 
+     * @return int[]
+     */
     protected function primaryKeyFields()
     {
         return $this->keyFieldCache[$this->primaryKey];
     }
+    
+    /**
+     * Get the primary key number.
+     * 
+     * @return int
+     */
     public function primarykey()
     {
         return $this->primaryKey;
     }
+    
+     /**
+     * Get the array of primary key field name.
+     * 
+     * @return string[]
+     */
     public function primaryKeyFieldNames()
     {
         return $this->keyFieldNameCache[$this->primaryKey];
     }
-
+    
+    /**
+     *  Get the array of key field name of specified index. 
+     * 
+     * @param int $index The key number
+     * @return string[]
+     */
     public function keyFieldNames($index)
     {
         return $this->keyFieldNameCache[$index];
     }
 
+    /**
+     * Returns whether multiple records search from the specified parameters. 
+     * 
+     * @param int $index The key number.
+     * @param int $segments The number of segments to be used.
+     * @return boolean
+     */
     public function isSeekHasMany($index, $segments)
     {
         if ($segments < count($this->keyFieldCache[$index])) {
@@ -150,39 +198,67 @@ class QueryExecuter
         return $kd->segment(0)->flags->bit0 === 1;
     }
 
+    /**
+     * Get the writable internal table Object.
+     * 
+     * @return BizStation\Transactd\Table
+     */
     public function table()
     {
         return $this->tb;
     }
 
+    /**
+     * Get the internal ActiveTable Object.
+     * 
+     * @return BizStation\Transactd\ActiveTable
+     */
     public function activeTable()
     {
         return $this->at;
     }
 
+    /**
+     *  Get the writable internal table Object.
+     * 
+     * @return BizStation\Transactd\Table
+     */
     public function getWritableTable()
     {
         return $this->tb;
     }
 
+    /**
+     *  Get the read-only internal table Object.
+     * 
+     * @return BizStation\Transactd\Table
+     */
     public function getReadbleTable()
     {
         return $this->tbr;
     }
 
-    public function __construct($tableName, $dbm, $dbs, $className)
+    /**
+     * 
+     * @param string $tableName
+     * @param BizStation\Transactd\PooledDbManager|BizStation\Transactd\database $dbm Master database.
+     * @param BizStation\Transactd\PooledDbManager|BizStation\Transactd\database $dbs Slave database.
+     * @param string $className (optional) A class name of result.
+     * @throws IOException
+     */
+    public function __construct($tableName, $dbm, $dbs, $className='stdClass')
     {
-        $mode_m = transactd::TD_OPEN_NORMAL;
-        $mode_s = transactd::TD_OPEN_READONLY;
+        $mode_m = Transactd::TD_OPEN_NORMAL;
+        $mode_s = Transactd::TD_OPEN_READONLY;
         if ($dbm === null) {
-            $mode_m = transactd::TD_OPEN_READONLY;
+            $mode_m = Transactd::TD_OPEN_READONLY;
             $dbm = $dbs;
         } elseif ($dbs === null) {
-            $mode_s = transactd::TD_OPEN_NORMAL;
+            $mode_s = Transactd::TD_OPEN_NORMAL;
             $dbs = $dbm;
         }
         $this->dbm = $dbm;
-        $this->at = new activeTable($dbs, $tableName, $mode_s);
+        $this->at = new ActiveTable($dbs, $tableName, $mode_s);
         if ($this->at === null) {
             throw new IOException($tableName.' active table open stat='.$dbs->stat());
         }
@@ -192,7 +268,7 @@ class QueryExecuter
             throw new IOException($tableName.' table open stat='.$dbm->stat());
         }
         $this->tb->fetchClass = $className;
-        $this->tb->fetchMode = transactd::FETCH_USR_CLASS;
+        $this->tb->fetchMode = Transactd::FETCH_USR_CLASS;
         $this->tbr = $this->at->table();
         $this->setFetchClass($this->tbr);
 
@@ -202,6 +278,11 @@ class QueryExecuter
         $this->spcoll = method_exists($this->obj, 'newCollection');
     }
 
+    /**
+     * 
+     * @param BizStation\Transactd\Table $tb
+     * @param BizStation\Transactd\Table $src
+     */
     protected function copyKeyValues($tb, $src)
     {
         $td = $tb->tableDef();
@@ -212,7 +293,12 @@ class QueryExecuter
         }
     }
 
-    /* set unique values to field */
+    /**
+     * Set key values to current key fields 
+     * 
+     * @param mixed|mixed[] $id
+     * @param BizStation\Transactd\Table $tb
+     */
     protected function setKeyValues($id, $tb)
     {
         $fields = $this->keyFieldCache[$tb->keyNum()];
@@ -226,21 +312,31 @@ class QueryExecuter
             $tb->setFV($fields[0], $id);
         }
     }
-
+    
+    /**
+     * Set timestamp mode to wriatble internal table.
+     * 
+     * @param bool $v
+     */
     public function setTimeStampMode($v)
     {
         if ($this->timeStampMode !== $v) {
             if ($v === false) {
-                $this->tb->setTimestampMode(transactd::TIMESTAMP_VALUE_CONTROL);
+                $this->tb->setTimestampMode(Transactd::TIMESTAMP_VALUE_CONTROL);
             } else {
-                $this->tb->setTimestampMode(transactd::TIMESTAMP_ALWAYS);
+                $this->tb->setTimestampMode(Transactd::TIMESTAMP_ALWAYS);
             }
             if ($this->tb->stat() === 0) {
                 $this->timeStampMode = $v;
             }
         }
     }
-
+    
+    /**
+     * Set field name aliases
+     * 
+     * @param array $aliases [['original' => 'alias'], ...]
+     */
     public function setAliases($aliases)
     {
         foreach ($aliases as $key => $value) {
@@ -250,6 +346,12 @@ class QueryExecuter
         }
     }
 
+    /**
+     * Set the index number for search.
+     * 
+     * @param int $index
+     * @return \Transactd\QueryExecuter
+     */
     public function index($index)
     {
         $this->at->index($index);
@@ -257,17 +359,42 @@ class QueryExecuter
         return $this;
     }
 
+    /**
+     * Change the index number to the primary key.
+     * 
+     * @return \Transactd\QueryExecuter
+     */
     public function indexToPrimaryKey()
     {
         return $this->index($this->primaryKey);
     }
 
+    /**
+     * Set key value(s) of current key.
+     * 
+     * @param mixed $v1 First segment value.
+     * @param mixed $v2 (optional) Second segment value.
+     * @param mixed $v3 (optional) Third segment value.
+     * @param mixed $v4 (optional) Fourth segment value.
+     * @param mixed $v5 (optional) Fifth segment value.
+     * @param mixed $v6 (optional) Sixth segment value.
+     * @param mixed $v7 (optional) Seventh segment value.
+     * @param mixed $v8 (optional) Eighth segment value.
+     * @return \Transactd\QueryExecuter
+     */
     public function keyValue($v1, $v2 = null, $v3 = null, $v4 = null, $v5 = null, $v6 = null, $v7 = null, $v8 = null)
     {
         $this->at->keyValue($v1, $v2, $v3, $v4, $v5, $v6, $v7, $v8);
         return $this;
     }
-
+    
+    /**
+     * Whether or not to enable updateConflictCheck.
+     * 
+     * @param bool $v
+     * @return \Transactd\QueryExecuter
+     * @throws \RuntimeException
+     */
     public function updateConflictCheck($v)
     {
         if ($this->tb->setUpdateConflictCheck($v) === false) {
@@ -275,7 +402,14 @@ class QueryExecuter
         }
         return $this;
     }
-
+    
+    /**
+     * Search results the registration of the chunk.
+     * 
+     * @param int $n Count of a chunk.
+     * @param string $func Handler function name.
+     * @return bool
+     */
     public function chunk($n, $func)
     {
         //Execute query at each chunk.
@@ -331,11 +465,25 @@ class QueryExecuter
         return $rs;
     }
 
+    /**
+     * Execute the contents of the queue in the order. And returns the result.
+     * 
+     * @param bool $toArray (optional) false: Get by recordset.
+     * @return \Transactd\Collection|BizStation\Transactd\Recordset
+     */
     public function read($toArray = true)
     {
-        $this->get($toArray);
+        return $this->get($toArray);
     }
 
+    /**
+     * Create a collection from a result array.
+     * 
+     * @param array $ar A array of result.
+     * @param \Transactd\Relation $rel (optinal) Relation object of result. 
+     * @param object $parent (optinal) A parent object of relation.
+     * @return \Transactd\Collection
+     */
     public function arrayToCollection($ar, $rel = null, $parent = null)
     {
         if ($this->spcoll === true) {
@@ -355,7 +503,7 @@ class QueryExecuter
                 $rs = $rs->toArray();
                 if ($with === true) {
                     $tmp = $this->tb->fetchClass;
-                    $tmp::resolvRelations($rs, $this->with);
+                    $tmp::resolveRelations($rs, $this->with);
                 }
                 $rs = $this->arrayToCollection($rs);
             }
@@ -368,6 +516,12 @@ class QueryExecuter
         }
     }
 
+    /**
+     * The alias of this::read().
+     * 
+     * @param bool $toArray (optional) false: Get by recordset.
+     * @return \Transactd\Collection|BizStation\Transactd\Recordset
+     */
     public function get($toArray = true)
     {
         $with = count($this->with) !== 0;
@@ -413,60 +567,111 @@ class QueryExecuter
         return $this;
     }
 
+    /**
+     * Add the outer-join in the execution queue.
+     * 
+     * @param \BizStation\Transactd\Query $q Queryy of select field.
+     * @param string[] $keyNmaes Key names of source table.
+     * @return \Transactd\Collection
+     */
     public function outerJoin($q, $keyNmaes)
     {
         return $this->addJoin($q, $keyNmaes, true);
     }
 
+    /**
+     * Add the inner-join in the execution queue.
+     * 
+     * @param \BizStation\Transactd\Query $q Queryy of select field.
+     * @param string[] $keyNmaes Key names of source table.
+     * @return \Transactd\Collection
+     */
     public function join($q, $keyNmaes)
     {
         return $this->addJoin($q, $keyNmaes, false);
     }
 
+    /**
+     * Add the grouping query in the execution queue.
+     * 
+     * @param \BizStation\Transactd\GroupQuery $gq
+     * @return \Transactd\QueryExecuter
+     * @throws \InvalidArgumentException
+     */
     public function groupBy($gq)
     {
         if ($this->gq === null &&
-            $this->isInstanceOf($gq, 'BizStation\Transactd\groupQuery') === true) {
+            $this->isInstanceOf($gq, 'BizStation\Transactd\GroupQuery') === true) {
             $this->gq = $gq;
             array_push($this->oprOrder, 'groupBy');
         } else {
-            throw new \InvalidArgumentException('arg1 is not class of BizStation\transactd\groupQuery.');
+            throw new \InvalidArgumentException('arg1 is not class of BizStation\Transactd\groupQuery.');
         }
         return $this;
     }
 
-    /* repeatable */
+   /**
+     * Add the sort-ordering query in the execution queue.
+     * 
+     * @param string $name A name of sort-target field name
+     * @param bool $asc Specifies whether the ascending order.
+     * @return \Transactd\QueryExecuter
+     * @throws \InvalidArgumentException
+     */
     public function orderBy($name, $asc)
     {
         if ($this->sort === null) {
-            $this->sort = new sortFields();
+            $this->sort = new SortFields();
             array_push($this->oprOrder, 'orderBy');
         }
         $this->sort->add($name, $asc);
         return $this;
     }
 
+    /**
+     * Add the filter(match-by) query in the execution queue.
+     * 
+     * @param \BizStation\Transactd\RecordsetQuery $rq
+     * @return \Transactd\QueryExecuter
+     */
     public function matchBy($rq)
     {
         $this->rq = $rq;
         array_push($this->oprOrder, 'matchBy');
         return $this;
     }
-
+    
+    /**
+     * Execute the contents of the queue in the order. And returns the BizStation\Transactd\Recordset result.
+     * 
+     * @return BizStation\Transactd\Recordset
+     */
     public function recordset()
     {
         return $this->get(false);
     }
-
+    
+    /**
+     * Set the union data.
+     * 
+     * @param \BizStation\Transactd\Recordset $rs A source data of recordset.
+     * @return \Transactd\QueryExecuter
+     * @throws \InvalidArgumentException
+     */
     public function union($rs)
     {
         if ($this->isInstanceOf($rs, 'BizStation\Transactd\Recordset') === true) {
             $this->union = $rs;
             return $this;
         }
-        throw new \InvalidArgumentException('arg1 is not class of BizStation\transactd\recordset.');
+        throw new \InvalidArgumentException('arg1 is not class of BizStation\Transactd\recordset.');
     }
 
+    /**
+     * Add the remove null operation in the execution queue.
+     * 
+     * @return \Transactd\QueryExecuter
+     */
     public function removeNullRecord()
     {
         $this->removeInvalidRecord = true;
@@ -474,30 +679,69 @@ class QueryExecuter
         return $this;
     }
 
-    public function all($toArray = true)
+    /**
+     * Reads all records from a table by the primary key.
+     * 
+     * @param string|int $minValue (optional) Specify the minimum value of the primary key
+     *                                         if 0 or '' is not minimum.
+     * @param bool $toArray (optional) false: Get by recordset.
+     * @return \Transactd\Collection|BizStation\Transactd\Recordset
+     */
+    public function all($minValue = 0, $toArray = true)
     {
-        return $this->index(0)->keyValue(0)->get($toArray);
+        return $this->indexToPrimaryKey()->keyValue($minValue)->get($toArray);
     }
-
+    
+    /**
+     * Find a record from the table by the current key.
+     * 
+     * @param mixed|mixed[] $id The primary key values.
+     * @param bool $throwException Whether to return an error when an exception.
+     * @return object|null
+     * @throws ModelNotFoundException
+     */
     public function find($id, $throwException = false)
     {
         $tb = $this->tbr;
-        /*$tb->clearBuffer();
-        $this->setKeyValues($id, $tb);
-        $tb->seek();*/
         $stat = $tb->seekKeyValue($id);
         if ($stat === 0) {
             return $tb->fields();
-        } elseif ($throwException === true && $stat === transactd::STATUS_NOT_FOUND_TI) {
+        } elseif ($throwException === true && $stat === Transactd::STATUS_NOT_FOUND_TI) {
             throw new ModelNotFoundException();
         }
         return null;
     }
-
-    public function findMany($ids, $throwException = false)
+    
+    /**
+     * Find multiple records by the current key values.
+     * 
+     * @param array $keyValuesArray A araay of the current key values. Ex:[1, 2] or [[1,1],[1,2]] 
+     * @return \Transactd\Collection
+     * @throws \InvalidArgumentException
+     */
+    public function findMany($keyValuesArray)
     {
+        $segments = count($this->primaryKeyFields());
+        $flatArray = array();
+        foreach($keyValuesArray as $id) {
+            if (is_array($id)) {
+                if (count($id) !== $segments) {
+                    throw new \InvalidArgumentException();
+                }
+                array_push($flatArray, $id); 
+            }
+        }
+        array_push($flatArray, $id);
+        return $this->whereInKey($flatArray, $segments)->get();
     }
 
+    /**
+     * Find a first record by the current conditions.
+     * 
+     * @param bool $throwException Whether throw an exception that could not be found.
+     * @return object
+     * @throws ModelNotFoundException
+     */
     public function first($throwException = false)
     {
         if ($this->q->isWhereDefined() === true) {
@@ -508,20 +752,23 @@ class QueryExecuter
         $tb->seekFirst();
         if ($tb->stat() === 0) {
             $ret = $tb->fields();
-        } elseif ($throwException === true && $tb->stat() === transactd::STATUS_EOF) {
+        } elseif ($throwException === true && $tb->stat() === Transactd::STATUS_EOF) {
             throw new ModelNotFoundException();
         }
         $this->reset();
         return $ret;
     }
-
+    
+    /**
+     * Get a genaretor of the current query.
+     * 
+     * @return Generator
+     */
     public function cursor()
     {
         $tb = $this->tbr;
         $tb->setQuery($this->q->query());
         $tb->find();
-        //if (version_compare(phpversion(), '5.5.0', '<'))
-        //	return new tableIterator($tb);
         while ($tb->stat() === 0) {
             yield $tb->fields();
             $tb->findNext();
@@ -529,11 +776,11 @@ class QueryExecuter
         $this->reset();
     }
 
-    public function prepareCreate($attributes)
+    private function prepareCreate($attributes)
     {
         $tb = $this->getWritableTable();
         $tb->clearBuffer();
-        if ($tb->fetchMode === transactd::FETCH_USR_CLASS) {
+        if ($tb->fetchMode === Transactd::FETCH_USR_CLASS) {
             $obj = new $tb->fetchClass();
             $attributes = $obj->filterCreateAttribute($attributes);
         }
@@ -543,7 +790,7 @@ class QueryExecuter
         return $tb;
     }
 
-    public function getCreatedObject($tb)
+    private function getCreatedObject($tb)
     {
         $obj = $tb->fields();
         if ($this->created !== null) {
@@ -555,8 +802,20 @@ class QueryExecuter
         return $obj;
     }
 
+   
     /**
-     Object is returned as parameters. It does not reflect such as Timestamp.
+     * Create a new object specified by the property of fetchClass.
+     * 
+     * @param array $attributes The initial value of the attribute.
+     * @param type $nosave Whether at the same time it stored in the database?<br/>
+     *                      - true Do not save.
+     *                      - false Do save.
+     *  <ul>               
+     *   <li> true : Do not save</li>
+     *   <li> false : Do save</li>
+     *  </ul>
+     * @return object
+     * @throws IOException
      */
     public function create($attributes,  $nosave = false)
     {
@@ -573,29 +832,30 @@ class QueryExecuter
         }
         return $this->getCreatedObject($tb);
     }
-
+    /**
+     * Find first or create(insert) a object specified by attribute.
+     * 
+     * @param array $attributes The initial value of the attribute.
+     * @return object
+     * @throws IOException
+     */
     public function firstOrCreate($attributes)
     {
         $tb = $this->prepareCreate($attributes);
         $tb->seek();
         if ($tb->stat() === STATUS_NOT_FOUND_TI) {
-            $tmp = $this->creating;
-            if ($tmp !== null && $tmp::creating($tb->fields()) === false) {
-                return null;
-            }
-            $tb->insert();
-            if ($tb->stat() !== 0) {
-                throw new IOException($tb->statMsg(), $tb->stat());
-            }
-
-            return $this->getCreatedObject($tb);
-        }
-        if ($tb->stat() !== 0) {
-            throw new IOException($tb->statMsg(), $tb->stat());
+            return $this->create($attributes,  false);
         }
         return $tb->fields();
     }
 
+    /**
+     * Find first or instantiate a object specified by attribute.
+     * 
+     * @param array $attributes The initial value of the attribute.
+     * @return object
+     * @throws IOException
+     */
     public function firstOrNew($attributes)
     {
         $tb = $this->prepareCreate($attributes);
@@ -605,26 +865,28 @@ class QueryExecuter
         }
         throw new IOException($tb->statMsg(), $tb->stat());
     }
-
+    /**
+     * Throw a exception of the ModelUserCancelException.
+     * 
+     * @param string $eventName
+     * @throws ModelUserCancelException
+     */
     protected function cancelTrnByEvent($eventName)
     {
-        //$this->dbm->abortTrn();
         throw new ModelUserCancelException($eventName);
     }
 
     /**
-
-     @return updated object array or false. Caceled by event then return false .
+     * @return object[]|false A updated object array or false. Caceled by event then returns false.
+     * @throws IOException
      */
     private function doUpdateWhere($tb, $delete, $attributes = null)
     {
         try {
             $array = array();
-            //$this->dbm->beginTrn();
             $tb->seekGreater(true);
             if ($tb->stat() === STATUS_EOF) {
                 $this->reset();
-
                 return $array;
             }
             $query = $this->q->query();
@@ -664,11 +926,9 @@ class QueryExecuter
                     array_push($array, $tb->fields());
                 }
             }
-            //$this->dbm->endTrn();
             $this->reset();
             return $array;
         } catch (\Exception $e) {
-            //$this->dbm->abortTrn();
             $this->reset();
             throw $e;
         }
@@ -717,6 +977,12 @@ class QueryExecuter
         throw new IOException($tb->statMsg(), $tb->stat());
     }
 
+    /**
+     * 
+     * @param array $attributes The update value of attributes.
+     * @return object[]
+     * @throws IOException
+     */
     protected function doUpdate($attributes)
     {
         $tb = $this->getWritableTable();
@@ -727,6 +993,11 @@ class QueryExecuter
         return $this->doUpdateWhere($tb, false, $attributes);
     }
 
+    /**
+     * 
+     * @return object[]
+     * @throws IOException
+     */
     protected function doDelete()
     {
         $tb = $this->getWritableTable();
@@ -737,11 +1008,27 @@ class QueryExecuter
         return $this->doUpdateWhere($tb, true);
     }
 
+    /**
+     * Update records selected by current conditions by the attributes.
+     * If no conditions specified updates current key values.
+     * 
+     * @param array $attributes The update value of attributes.
+     *  Do not specify the current key field.
+     * @return int Count of effects.
+     * @throws IOException
+     */
     public function update($attributes)
     {
         return count($this->doUpdate($attributes));
     }
 
+    /**
+     * Delete records selected by current conditions. 
+     * If no conditions specified deletes current key values.
+     * 
+     * @return int Count of effects.
+     * @throws IOException
+     */
     public function delete()
     {
         return count($this->doDelete());
@@ -756,132 +1043,266 @@ class QueryExecuter
         throw new \BadMethodCallException($name);
     }
 
-    public function when($jadge, $func)
+    /**
+     * Execute the closure that has been specified by the condition.
+     * 
+     * @param bool $condition
+     * @param type $func The closure.
+     * @return \Transactd\QueryExecuter
+     */
+    public function when($condition, $func)
     {
-        if ($jadge == true) {
+        if ($condition == true) {
             $func($this);
         }
         return $this;
     }
-    public function where($a, $b = null, $c = null)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return \Transactd\QueryExecuter
+     */
+    public function where($name, $operator=null, $value = null)
     {
-        $this->q->where($a, $b, $c);
+        $this->q->where($name, $operator, $value);
         return $this;
     }
 
-    public function orWhere($a, $b = null, $c = null)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string $operator  Operator or a value.
+     * @param mixed (optional) a value
+     * @return \Transactd\QueryExecuter
+     */
+    public function orWhere($name, $operator=null, $value = null)
     {
-        $this->q->orWhere($a, $b, $c);
+        $this->q->orWhere($name, $operator, $value);
         return $this;
     }
 
-    public function whereNull($fdname)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return \Transactd\QueryExecuter
+     */
+    public function whereNull($name)
     {
-        $this->q->whereNull($fdname);
+        $this->q->whereNull($name);
         return $this;
     }
 
-    public function orNull($fdname)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return \Transactd\QueryExecuter
+     */
+    public function orNull($name)
     {
-        $this->q->orNull($fdname);
+        $this->q->orNull($name);
         return $this;
     }
 
-    public function whereNotNull($fdname)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return \Transactd\QueryExecuter
+     */
+    public function whereNotNull($name)
     {
-        $this->q->whereNotNull($fdname);
+        $this->q->whereNotNull($name);
         return $this;
     }
 
-    public function orNotNull($fdname)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return \Transactd\QueryExecuter
+     */
+    public function orNotNull($name)
     {
-        $this->q->orNotNull($fdname);
+        $this->q->orNotNull($name);
         return $this;
     }
 
+    /**
+     * 
+     * @param @param mixed $values Key values
+     * @param @param int $segments The segment count of values.
+     * @return \Transactd\QueryExecuter
+     */
     public function whereInKey($values, $segments = null)
     {
         $this->q->whereInKey($this->tbr, $values, $segments);
         return $this;
     }
 
-    public function whereIn($fdName, $values)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed $values Key values.
+     * @return \Transactd\QueryExecuter
+     */
+    public function whereIn($name, $values)
     {
-        $this->q->whereIn($fdName, $values);
+        $this->q->whereIn($name, $values);
         return $this;
     }
 
-    public function whereNotIn($fdName, $values)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed $values Key values.
+     * @return \Transactd\QueryExecuter
+     */
+    public function whereNotIn($name, $values)
     {
-        $this->q->whereNotIn($fdName, $values);
+        $this->q->whereNotIn($name, $values);
         return $this;
     }
 
-    public function whereBetween($fdName, $valuePair)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed[2] $valuePair A pair of first value and end value.
+     * @return \Transactd\QueryExecuter
+     */
+     public function whereBetween($name, $valuePair)
     {
-        $this->q->whereBetween($fdName, $valuePair);
+        $this->q->whereBetween($name, $valuePair);
         return $this;
     }
 
-    public function whereNotBetween($fdName, $valuePair)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed[2] $valuePair A pair of first value and end value.
+     * @return \Transactd\QueryExecuter
+     */
+    public function whereNotBetween($name, $valuePair)
     {
-        $this->q->whereNotBetween($fdName, $valuePair);
+        $this->q->whereNotBetween($name, $valuePair);
+        return $this;
+    }
+   
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return \Transactd\QueryExecuter
+     */
+    public function whereColumn($name, $operator=null, $value = null)
+    {
+        $this->q->whereColumn($name, $operator, $value);
         return $this;
     }
 
-    public function whereColumn($a, $b = null, $c = null)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return \Transactd\QueryExecuter
+     */
+    public function orColumn($name, $operator=null, $value = null)
     {
-        $this->q->whereColumn($a, $b, $c);
+        $this->q->orColumn($name, $operator, $value);
         return $this;
     }
 
-    public function orColumn($a, $b = null, $c = null)
+    /**
+     * 
+     * @param string $name1 A field name.
+     * @param type $name2 (optional)  A field name.
+     * @param type $name3 (optional)  A field name.
+     * @param type $name4 (optional)  A field name.
+     * @param type $name5 (optional)  A field name.
+     * @param type $name6 (optional)  A field name.
+     * @param type $name7 (optional)  A field name.
+     * @param type $name8 (optional)  A field name.
+     * @return \Transactd\QueryExecuter
+     */
+    public function select($name1, $name2 = null, $name3 = null, $name4 = null, $name5 = null, $name6 = null, $name7 = null, $name8 = null)
     {
-        $this->q->orColumn($a, $b, $c);
+        $this->q->select($name1, $name2, $name3, $name4, $name5, $name6, $name7, $name8);
         return $this;
     }
 
-    public function select($a, $b = null, $c = null, $d = null, $e = null, $f = null, $g = null, $h = null)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return \Transactd\QueryExecuter
+     */
+    public function addSelect($name)
     {
-        $this->q->select($a, $b, $c, $d, $e, $f, $g, $h);
+        $this->q->addSelect($name);
         return $this;
     }
 
-    public function addSelect($a)
-    {
-        $this->q->addSelect($a);
-        return $this;
-    }
-
+    /**
+     * 
+     * @param int $v
+     * @return \Transactd\QueryExecuter
+     */
     public function reject($v)
     {
         $this->q->reject($v);
         return $this;
     }
 
+    /**
+     * 
+     * @param int $n
+     * @return \Transactd\QueryExecuter
+     */
     public function skip($n)
     {
         $this->q->skip($n);
         return $this;
     }
 
+    /**
+     * 
+     * @param int $n
+     * @return \Transactd\QueryExecuter
+     */
     public function take($n)
     {
         $this->q->take($n);
         return $this;
     }
 
+    /**
+     * 
+     * @param int $n
+     * @return \Transactd\QueryExecuter
+     */
     public function limit($n)
     {
         $this->q->take($n);
         return $this;
     }//alias to take
 
+    /**
+     * Get a description of the query.
+     * 
+     * @return string
+     */
     public function queryString()
     {
         return $this->q->query()->toString();
     }
 
+    /**
+     * Get a description of the key values.
+     * 
+     * @param \BizStation\Transactd\Table $tb
+     * @return string
+     */
     private function keyValueDescription($tb)
     {
         $value = '';
@@ -897,6 +1318,12 @@ class QueryExecuter
         return $value;
     }
 
+    /**
+     * Get a description of the key values and query.
+     * 
+     * @param \BizStation\Transactd\Query $q
+     * @return string
+     */
     public function queryDescription($q = null)
     {
         if ($q === null) {
@@ -912,31 +1339,65 @@ class QueryExecuter
         return $keyvalue.$s;
     }
 
+    /**
+     * Get the record count.
+     * 
+     * @return int 
+     */
     public function count()
     {
         return $this->get(false)->size();
     }
 
+    /**
+     * Calculate the total value of the specified column.
+     * 
+     * @param string $column
+     * @return double
+     */
     public function sum($column)
     {
         return AggregateFunction::sum($this->get(false), $column);
     }
 
+    /**
+     * Find the minimum value of the specified column.
+     * 
+     * @param string $column
+     * @return double
+     */
     public function min($column)
     {
         return AggregateFunction::min($this->get(false), $column);
     }
-
+    
+    /**
+     * Find the maximum value of the specified column.
+     * 
+     * @param string $column
+     * @return double
+     */
     public function max($column)
     {
         return AggregateFunction::max($this->get(false), $column);
     }
 
+     /**
+     * Calculate the average value of the specified column.
+     * 
+     * @param string $column
+     * @return double
+     */
     public function avg($column)
     {
         return AggregateFunction::avg($this->get(false), $column);
     }
-
+    
+    /**
+     * The alias name of the avg function . 
+     * @param type $column
+     * @return type
+     */
     public function average($column)
     {
         return AggregateFunction::avg($this->get(false), $column);

@@ -4,7 +4,7 @@ namespace Transactd;
 
 use \Exception;  
 /**
- * Description of IOException.
+ * IOException.
  *
  */
 class IOException extends Exception

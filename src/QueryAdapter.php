@@ -2,8 +2,10 @@
 
 namespace Transactd;
 
-use BizStation\Transactd\query;
-
+use BizStation\Transactd\Query;
+/**
+ * This class is used only in QueryExecuter. The user does not have to be used.
+ */
 class QueryAdapter
 {
     private $q;
@@ -25,9 +27,9 @@ class QueryAdapter
 
     public function __construct()
     {
-        $this->q = new query();
+        $this->q = new Query();
     }
-
+  
     public function reset()
     {
         $this->whereFlag = false;
@@ -40,7 +42,11 @@ class QueryAdapter
     {
         return $this->whereFlag;
     }
-
+    
+    /**
+     * 
+     * @return BizStation\Transactd\Query
+     */
     public function query()
     {
         if ($this->take > 0) {
@@ -50,142 +56,198 @@ class QueryAdapter
         }
         return $this->q;
     }
-
+    
+    /**
+     * 
+     * @return int
+     */
     public function getSkip()
     {
         return $this->skip;
     }
-
-    private function extructArrayAndCall($a, $func)
+  
+    private function extructArrayAndCall($name, $func)
     {
-        if (is_array($a) === true && count($a) > 0) {
-            if (is_array($a[0]) === true) {
-                foreach ($a as $where) {
-                    $a1 = $where[0];
-                    $a2 = count($where) > 1 ? $where[1] : null;
-                    $a3 = count($where) > 2 ? $where[2] : null;
-                    $this->{$func}($a1, $a2, $a3);
+        if (is_array($name) === true && count($name) > 0) {
+            if (is_array($name[0]) === true) {
+                foreach ($name as $where) {
+                    $name1 = $where[0];
+                    $name2 = count($where) > 1 ? $where[1] : null;
+                    $name3 = count($where) > 2 ? $where[2] : null;
+                    $this->{$func}($name1, $name2, $name3);
                 }
             } else {
-                $a1 = $a[0];
-                $a2 = count($a) > 1 ? $a[1] : null;
-                $a3 = count($a) > 2 ? $a[2] : null;
-                $this->{$func}($a1, $a2, $a3);
+                $name1 = $name[0];
+                $name2 = count($name) > 1 ? $name[1] : null;
+                $name3 = count($name) > 2 ? $name[2] : null;
+                $this->{$func}($name1, $name2, $name3);
             }
             return true;
         }
         return false;
     }
-
-    public function where($a, $b = null, $c = null)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return void
+     */
+    public function where($name, $operator, $value = null)
     {
-        if ($this->extructArrayAndCall($a, 'where') === true) {
+        if ($this->extructArrayAndCall($name, 'where') === true) {
             return;
         }
-        if ($c === null) {
-            $c = $b;
-            $b = '=';
+        if ($value === null) {
+            $value = $operator;
+            $operator = '=';
         }
         if ($this->whereFlag === true) {
-            $this->q->and_($a, $b, $c);
+            $this->q->and_($name, $operator, $value);
         } else {
-            $this->q->where($a, $b, $c);
+            $this->q->where($name, $operator, $value);
         }
         $this->whereFlag = true;
     }
-
-    public function orWhere($a, $b = null, $c = null)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return void
+     */
+    public function orWhere($name, $operator, $value = null)
     {
         if ($this->whereFlag === false) {
             $this->throwUseSecondException('orWhere');
         }
-        if ($this->extructArrayAndCall($a, 'orWhere') === true) {
+        if ($this->extructArrayAndCall($name, 'orWhere') === true) {
             return;
         }
-        if ($c === null) {
-            $c = $b;
-            $b = '=';
+        if ($value === null) {
+            $value = $operator;
+            $operator = '=';
         }
-        $this->q->or_($a, $b, $c);
+        $this->q->or_($name, $operator, $value);
     }
-
-    public function whereColumn($a, $b = null, $c = null)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return void
+     */
+    public function whereColumn($name, $operator, $value = null)
     {
-        // search same field value
-
-        if ($this->extructArrayAndCall($a, 'whereColumn') === true) {
+        if ($this->extructArrayAndCall($name, 'whereColumn') === true) {
             return;
         }
 
-        if ($c === null) {
-            $c = $b;
-            $b = '=';
+        if ($value === null) {
+            $value = $operator;
+            $operator = '=';
         }
-        $c = '['.$c.']';
+        $value = '['.$value.']';
 
         if ($this->whereFlag === true) {
-            $this->q->and_($a, $b, $c);
+            $this->q->and_($name, $operator, $value);
         } else {
-            $this->q->where($a, $b, $c);
+            $this->q->where($name, $operator, $value);
         }
         $this->whereFlag = true;
     }
-
-    public function orColumn($a, $b = null, $c = null)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @param string|mixed $operator  Operator or a value.
+     * @param mixed $value (optional) a value
+     * @return void
+     */
+    public function orColumn($name, $operator, $value = null)
     {
         // search same field value
         if ($this->whereFlag === false) {
             $this->throwUseSecondException('orColumn');
         }
 
-        if ($this->extructArrayAndCall($a, 'orColumn') === true) {
+        if ($this->extructArrayAndCall($name, 'orColumn') === true) {
             return;
         }
-        if ($c === null) {
-            $c = $b;
-            $b = '=';
+        if ($value === null) {
+            $value = $operator;
+            $operator = '=';
         }
-        $c = '['.$c.']';
-        $this->q->or_($a, $b, $c);
+        $value = '['.$value.']';
+        $this->q->or_($name, $operator, $value);
         $this->whereFlag = true;
     }
-
-    public function whereNull($fdname)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @return void
+     */
+    public function whereNull($name)
     {
         if ($this->whereFlag === true) {
-            $this->q->andIsNull($fdname);
+            $this->q->andIsNull($name);
         } else {
-            $this->q->whereIsNull($fdname);
+            $this->q->whereIsNull($name);
         }
         $this->whereFlag = true;
     }
-
-    public function orNull($fdname)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @return void
+     */
+    public function orNull($name)
     {
         if ($this->whereFlag === false) {
             $this->throwUseSecondException('orNull');
         }
-        $this->q->orIsNull($fdname);
+        $this->q->orIsNull($name);
     }
 
-    public function whereNotNull($fdname)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return void
+     */
+    public function whereNotNull($name)
     {
         if ($this->whereFlag === true) {
-            $this->q->andIsNotNull($fdname);
+            $this->q->andIsNotNull($name);
         } else {
-            $this->q->whereIsNotNull($fdname);
+            $this->q->whereIsNotNull($name);
         }
         $this->whereFlag = true;
     }
 
-    public function orNotNull($fdname)
+    /**
+     * 
+     * @param string $name A field name.
+     * @return void
+     */
+    public function orNotNull($name)
     {
         if ($this->whereFlag === false) {
             $this->throwUseSecondException('orNotNull');
         }
-        $this->q->orIsNotNull($fdname);
+        $this->q->orIsNotNull($name);
     }
-
+    
+    /**
+     * 
+     * @param BizStation\Transactd\Table $tb
+     * @param mixed $values Key values
+     * @param int $segments The segment count of values.
+     */
     public function whereInKey($tb, $values, $segments = null)
     {
         if ($this->whereFlag === true) {
@@ -202,76 +264,120 @@ class QueryAdapter
             $this->q->in($value);
         }
     }
-
-    public function whereIn($fdName, $values)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed $values Key values.
+     */
+    public function whereIn($name, $values)
     {
         if ($this->whereFlag === true) {
             $this->throwUseFirstException('whereIn');
         }
         foreach ($values as $value) {
             if ($this->whereFlag === true) {
-                $this->q->or_($fdName, '=', $value);
+                $this->q->or_($name, '=', $value);
             } else {
-                $this->q->where($fdName, '=', $value);
+                $this->q->where($name, '=', $value);
                 $this->whereFlag = true;
             }
         }
     }
-
-    public function whereNotIn($fdName, $values)
+    
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed $values Key values.
+     */
+    public function whereNotIn($name, $values)
     {
         if ($this->whereFlag === true) {
             $this->throwUseFirstException('whereNotIn');
         }
         foreach ($values as $value) {
             if ($this->whereFlag === true) {
-                $this->q->and_($fdName, '<>', $value);
+                $this->q->and_($name, '<>', $value);
             } else {
-                $this->q->where($fdName, '<>', $value);
+                $this->q->where($name, '<>', $value);
                 $this->whereFlag = true;
             }
         }
     }
 
-    public function whereBetween($fdName, $valuePair)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed[2] $valuePair A pair of first value and end value.
+     */
+    public function whereBetween($name, $valuePair)
     {
         if ($this->whereFlag === true) {
             $this->throwUseFirstException('whereBetween');
         }
-        $this->q->where($fdName, '>=', $valuePair[0])->and_($fdName, '<=', $valuePair[1]);
+        $this->q->where($name, '>=', $valuePair[0])->and_($name, '<=', $valuePair[1]);
         $this->whereFlag = true;
     }
-
-    public function whereNotBetween($fdName, $valuePair)
+    /**
+     * 
+     * @param string $name A field name.
+     * @param mixed[2] $valuePair A pair of first value and end value.
+     */
+     public function whereNotBetween($name, $valuePair)
     {
         if ($this->whereFlag === true) {
             $this->throwUseFirstException('whereNotBetween');
         }
-        $this->q->where($fdName, '<', $valuePair[0])->or_($fdName, '>', $valuePair[1]);
+        $this->q->where($name, '<', $valuePair[0])->or_($name, '>', $valuePair[1]);
         $this->whereFlag = true;
     }
 
-    public function select($a, $b = null, $c = null, $d = null, $e = null, $f = null, $g = null, $h = null)
+    /**
+     * 
+     * @param string $name1 A field name.
+     * @param type $name2 (optional)  A field name.
+     * @param type $name3 (optional)  A field name.
+     * @param type $name4 (optional)  A field name.
+     * @param type $name5 (optional)  A field name.
+     * @param type $name6 (optional)  A field name.
+     * @param type $name7 (optional)  A field name.
+     * @param type $name8 (optional)  A field name.
+     */
+    public function select($name1, $name2 = null, $name3 = null, $name4 = null, $name5 = null, $name6 = null, $name7 = null, $name8 = null)
     {
         $this->q->clearSelectFields();
-        $this->q->select($a, $b, $c, $d, $e, $f, $g, $h);
+        $this->q->select($name1, $name2, $name3, $name4, $name5, $name6, $name7, $name8);
     }
 
-    public function addSelect($a)
+    /**
+     * 
+     * @param string $name A field name.
+     */
+    public function addSelect($name)
     {
-        $this->q->select($a);
+        $this->q->select($name);
     }
-
-    public function reject($v)
+    /**
+     * 
+     * @param int $n
+     */
+    public function reject($n)
     {
-        $this->q->reject($v);
+        $this->q->reject($n);
     }
-
+    
+    /**
+     * 
+     * @param int $n
+     */
     public function skip($n)
     {
         $this->skip = $n;
     }
 
+    /**
+     * 
+     * @param int $n
+     */
     public function take($n)
     {
         $this->take = $n;

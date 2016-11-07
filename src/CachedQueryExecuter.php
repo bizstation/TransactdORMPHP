@@ -2,15 +2,26 @@
 
 namespace Transactd;
 
-use BizStation\Transactd\transactd;
+use BizStation\Transactd\Transactd;
 use Transactd\QueryExecuter;
 
+/**
+ *  QueryExecuter with cache.
+ * 
+ *  Return from the cache if exists in the cache before reading.
+ */
 class CachedQueryExecuter extends QueryExecuter
 {
     public static $returnClone = false;
     private $findCache = array();
     private $caching = true;
-
+    /**
+     * Get a key string from specified field values of the object.
+     * 
+     * @param object $obj
+     * @param array $fields
+     * @return string
+     */
     public static function getCacheKeyByObj($obj, $fields)
     {
         $count = count($fields);
@@ -57,12 +68,22 @@ class CachedQueryExecuter extends QueryExecuter
         }
         return $id;
     }
-
+    /**
+     * Get a key string from primary key field value of the object.
+     * 
+     * @param object $obj
+     * @return string
+     */
     public function cacheKeyByObj($obj)
     {
         return self::getCacheKeyByObj($obj, $this->primaryKeyFieldNames);
     }
-
+    /**
+     * 
+     * @param object $obj
+     * @param bool $clear
+     * @return object
+     */
     private function updateCache($obj, $clear = false)
     {
         if ($this->caching === false) {
@@ -82,9 +103,10 @@ class CachedQueryExecuter extends QueryExecuter
         return $obj;
     }
 
-    /** push obj to cache
-
-     @return key of cache.
+    /**
+     * 
+     * @param object $obj
+     * @return string Return a cache key.
      */
     public function pushToCache($obj)
     {
@@ -95,12 +117,19 @@ class CachedQueryExecuter extends QueryExecuter
         $this->findCache[$key] = $obj;
         return $key;
     }
-
+    /**
+     * Clear all cache object of this table. 
+     */
     public function clear()
     {
         $this->findCache = array();
     }
-
+    /**
+     * 
+     * @param mixed $id
+     * @param bool $throwException
+     * @return object|null 
+     */
     public function find($id, $throwException = false)
     {
         Model::$resolvByCache = false;
@@ -108,7 +137,6 @@ class CachedQueryExecuter extends QueryExecuter
             $key = $this->cacheKey($id);
             if (array_key_exists($key, $this->findCache) === true) {
                 Model::$resolvByCache = true;
-
                 return $this->getClone($this->findCache[$key]);
             }
         }
@@ -118,13 +146,22 @@ class CachedQueryExecuter extends QueryExecuter
         }
         return $ret;
     }
-
+    /**
+     * 
+     * @param array $ids
+     * @param bool $throwException
+     * @return array|\Transactd\Collection|\BizStation\Transactd\Recordset
+     */
     public function findMany($ids, $throwException = false)
     {
         $ret = parent::findMany($ids, $throwException);
         return $ret;
     }
-
+    /**
+     * 
+     * @param string $key
+     * @return object|false
+     */
     public function getCache($key)
     {
         if (array_key_exists($key, $this->findCache) === true) {
@@ -132,33 +169,57 @@ class CachedQueryExecuter extends QueryExecuter
         }
         return false;
     }
-
+    /**
+     * 
+     * @param array $attributes
+     * @param bool $nosave
+     * @return object
+     */
     public function create($attributes, $nosave = false)
     {
         return $this->updateCache(parent::create($attributes, $nosave));
     }
-
+    /**
+     * 
+     * @param array $attributes
+     * @return object
+     */
     public function firstOrCreate($attributes)
     {
         return $this->updateCache(parent::firstOrCreate($attributes));
     }
-
+    /**
+     * 
+     * @param array $attributes
+     * @return object
+     */
     public function firstOrNew($attributes)
     {
         return $this->updateCache(parent::firstOrNew($attributes));
     }
-
+    /**
+     * Re-read from the database.
+     * 
+     * @param object $obj
+     * @return object
+     * @throws IOException
+     */
     public function refresh($obj)
     {
         $tb = $this->getWritableTable();
-        $tb->readByObj($obj);
+        $tb->readByObject($obj);
         if ($tb->stat() !== 0) {
             throw new IOException($tb->statMsg(), $tb->stat());
         }
         $this->updateCache($obj);
         return $tb->stat() === 0;
     }
-
+    /**
+     * 
+     * @param object $obj
+     * @return bool
+     * @throws IOException
+     */
     public function deleteByObj($obj)
     {
         $tmp = $this->deleting;
@@ -166,9 +227,9 @@ class CachedQueryExecuter extends QueryExecuter
             return false;
         }
         $tb = $this->getWritableTable();
-        $tb->deleteByObj($obj);
+        $tb->deleteByObject($obj);
         $stat = $tb->stat();
-        if ($stat !== 0 && $stat !== transactd::STATUS_NOT_FOUND_TI) {
+        if ($stat !== 0 && $stat !== Transactd::STATUS_NOT_FOUND_TI) {
             throw new IOException($tb->statMsg(), $tb->stat());
         }
         $tmp = $this->deleted;
@@ -178,7 +239,12 @@ class CachedQueryExecuter extends QueryExecuter
         $this->updateCache($obj, true);
         return true;
     }
-
+    /**
+     * 
+     * @param object $obj
+     * @return boolean
+     * @throws IOException
+     */
     public function save($obj)
     {
         //ToDo insert and update event
@@ -187,7 +253,7 @@ class CachedQueryExecuter extends QueryExecuter
             return false;
         }
         $tb = $this->getWritableTable();
-        $tb->saveByObj($obj, true);
+        $tb->saveByObject($obj);
         if ($tb->stat() !== 0) {
             throw new IOException($tb->statMsg(), $tb->stat());
         }
@@ -198,8 +264,11 @@ class CachedQueryExecuter extends QueryExecuter
         $this->updateCache($obj);
         return $tb->stat() === 0;
     }
+
     /**
-     @return count of array or false
+     * 
+     * @param array $attributes
+     * @return int|false Return count of array or false.
      */
     public function update($attributes)
     {
@@ -212,7 +281,10 @@ class CachedQueryExecuter extends QueryExecuter
         }
         return count($array);
     }
-
+    /**
+     * 
+     * @return int|false Return count of array or false.
+     */
     public function delete()
     {
         $array = parent::doDelete();
@@ -259,7 +331,7 @@ class CachedQueryExecuter extends QueryExecuter
                     if ($tmp !== null) {
                         $tmp::deleted($obj);
                     }
-                } elseif ($tb->stat() !== transactd::STATUS_NOT_FOUND_TI) {
+                } elseif ($tb->stat() !== Transactd::STATUS_NOT_FOUND_TI) {
                     throw new IOException($tb->statMsg(), $tb->stat());
                 }
             }
@@ -272,7 +344,11 @@ class CachedQueryExecuter extends QueryExecuter
             throw $e;
         }
     }
-
+    /**
+     * 
+     * @param int|string|(int|string)[] $ids
+     * @return int
+     */
     public function destroy($ids)
     {
         $array = $this->doDestroy($ids);
@@ -281,7 +357,14 @@ class CachedQueryExecuter extends QueryExecuter
         }
         return count($array);
     }
-
+    /**
+     * 
+     * @param string|string[] $fieldNames
+     * @param bool $notUniqueAble
+     * @param bool $ignoreCount
+     * @return int
+     * @throws \UnexpectedValueException
+     */
     public function getIndexByFieldNames($fieldNames, $notUniqueAble = false, $ignoreCount = false)
     {
         $src = array();
@@ -308,7 +391,6 @@ class CachedQueryExecuter extends QueryExecuter
                             $this->tb->tableDef()->keyDef($i)->segment(0)->flags->bit0 === 1) {
                         throw new \UnexpectedValueException('Index is not unique key.');
                     }
-
                     return $i;
                 }
             } elseif ($ignoreCount === true && count($fields) >= count($src)) {
@@ -325,18 +407,21 @@ class CachedQueryExecuter extends QueryExecuter
         }
         throw new \UnexpectedValueException('Index field name(s):'.json_encode($fieldNames));
     }
-
+    /**
+     * 
+     * @param string $func
+     * @return \Transactd\CachedQueryExecuter
+     */
     public function with($func)
     {
         array_push($this->with, $func);
         return $this;
     }
-
+   
     public function __call($name, $arguments)
     {
         if (method_exists($this->tb->fetchClass, 'scope'.$name)) {
             $obj = $this->obj;
-            $this;
             $reflectionMethod = new \ReflectionMethod($this->tb->fetchClass, 'scope'.$name);
             array_unshift($arguments, $this);
             $reflectionMethod->invokeArgs($obj, $arguments);

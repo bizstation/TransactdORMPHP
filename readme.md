@@ -1,29 +1,33 @@
 TransactdORMPHP
 ===============================================================================
-TransactdORMPHPはMySQL/MariaDB用　NoSQLプラグイン Transactdを使用したPHP ORMライ
-ブラリです。
+TransactdORMPHP is PHP ORM library using NoSQL plug Transactd for MySQL / MariaDB.
+It is the fastest ORM for PHP.
 
-PHP最速のORMです。
+Description
+-------------------------------------------------------------------------------
+* High-speed database access.
+* The Model is possible to high speed access to properties.
+* It can be used as ActiveRecord.
+* Easy to migrate from the Laravel in similar interface to Laravel5.
+* It does not depend on any framework. Also available on any PHP framework. 
 
-## 詳細
-ORMのインターフェースは基本的にLaravel5に近いものです。
-
-## 実行環境
-* データベース : MySQL 5.6以上 / MariaDB 5.5以上
-* Transactd Plugin 3.6 以上
-
-## 制限事項
-* ORMのインターフェースはLaravel5完全互換ではありません。
-
-
-## 使い方
+Execution environment
+-------------------------------------------------------------------------------
+* Database : MySQL 5.6/MariaDB 5.5 or later
+* Transactd Plugin 3.6 or later
 
 
-
-## バグ報告・要望・質問など
-バグ報告・要望・質問などは、[github上のIssueトラッカー]
-(https://github.com/bizstation/TransactdORMPHP/issues)にお寄せください。
+How to use
+-------------------------------------------------------------------------------
 
 
-## ライセンス
+
+Bug reporting, requests and questions
+-------------------------------------------------------------------------------
+If you have any bug-reporting, requests or questions, please send it to
+[Issues tracker on github](https://github.com/bizstation/transactd/issues).
+
+
+License
+-------------------------------------------------------------------------------
 MIT

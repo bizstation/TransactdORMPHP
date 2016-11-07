@@ -14,7 +14,12 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
     const SAVE_BEFOERE_DELETE_ITEMS = 2;
     const DELETE_LOGICAL_ITEMS = 4;
     public $saveOprions = 6; //self::SAVE_BEFOERE_DELETE_ITEMS | self::DELETE_LOGICAL_ITEMS;
-
+    /**
+     * 
+     * @param object[] $array
+     * @param \Transactd\Relation $rel
+     * @param object $parent
+     */
     public function __construct($array, $rel = null, $parent = null)
     {
         $this->array = $array;
@@ -24,55 +29,88 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
             $this->saveOprions = self::SAVE_BEFOERE_DELETE_ITEMS;
         }
     }
-    // IteratorAggregate
+    /**
+     * 
+     * @return CollectionIterator
+     */
     public function getIterator()
     {
         return new CollectionIterator($this->array, 0, $this->count());
     }
-
-    // ArrayAccess
+    /**
+     * 
+     * @param int $offset
+     * @return bool
+     */
     public function offsetExists($offset)
     {
         return $offset >= 0 && $offset < $this->count();
     }
-
+    /**
+     * 
+     * @param int $offset
+     * @return object
+     */
     public function offsetGet($offset)
     {
         return $this->array[$offset];
     }
-
+    /**
+     * 
+     * @param int $offset
+     * @param object $value
+     */
     public function offsetSet($offset, $value)
     {
         $this->array[$offset] = $value;
     }
-
+    /**
+     * 
+     * @param int $offset
+     */
     public function offsetUnset($offset)
     {
         unset($this->array[$offset]);
     }
-
-    // Countable
+    /**
+     * 
+     * @return int
+     */
     public function count()
     {
         return count($this->array);
     }
-
-    // RangeIterator
+    /**
+     * 
+     * @param int $start
+     * @param int $end
+     * @return CollectionIterator
+     */
     public function range($start = null, $end = null)
     {
         return new CollectionIterator($this->array, $start, $end);
     }
-
+    /**
+     * 
+     * @return object[]
+     */
     public function getNativeArray()
     {
         return $this->array;
     }
-
+    /**
+     * 
+     * @param object[] $a
+     */
     public function setNativeArray($a)
     {
         $this->array = $a;
     }
-
+    /**
+     * 
+     * @param int $index
+     * @param object $child
+     */
     public function insert($index, $child)
     {
         if ($this->rel !== null) {
@@ -81,12 +119,19 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         array_splice($this->array, $index, 0, $child);
         $this->added = true;
     }
-
+    /**
+     * 
+     * @param \ArrayAccess $ar
+     * @return bool
+     */
     private function isArrayAccess($ar)
     {
         return ($ar instanceof \ArrayAccess) || (is_array($ar));
     }
-
+    /**
+     * 
+     * @param object $childs
+     */
     public function add($childs)
     {
         if ($this->isArrayAccess($childs) === false) {
@@ -102,16 +147,24 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         }
         $this->added = true;
     }
-
-    public function remove($indexOrObj)
+    /**
+     * 
+     * @param int $index
+     * @throws \OutOfRangeException
+     */
+    public function remove($index)
     {
-        if (is_int($indexOrObj) === false) {
+        if (is_int($index) === false) {
             throw new \OutOfRangeException();
         }
-        $this->removes[] = $this->array[$indexOrObj];
-        unset($this->array[$indexOrObj]);
+        $this->removes[] = $this->array[$index];
+        unset($this->array[$index]);
     }
-
+    /**
+     * 
+     * @return int
+     * @throws \BadMethodCallException
+     */
     private function logicalDelete()
     {
         if ($this->rel === null) {
@@ -121,7 +174,10 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         }
         return $this->rel->deleteAll($this->parent);
     }
-
+    /**
+     * 
+     * @return bool
+     */
     public function delete()
     {
         if (($this->saveOprions & 
@@ -172,7 +228,10 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         }
         return true;
     }
-
+    /**
+     * 
+     * @return bool
+     */
     public function save()
     {
         if (($this->saveOprions & self::SAVE_BEFOERE_DELETE_ITEMS) === self::SAVE_BEFOERE_DELETE_ITEMS) {
@@ -185,12 +244,18 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         }
         return true;
     }
-
+    /**
+     * 
+     * @param \Transactd\Relation $rel
+     */
     public function setRelation($rel)
     {
         $this->rel = $rel;
     }
-
+    /**
+     * 
+     * @param string $fieldName
+     */
     public function renumber($fieldName)
     {
         $size = count($this->array);
@@ -199,15 +264,16 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
             $obj->{$fieldName} = $i + 1;
         }
     }
-
+    /**
+     * 
+     * @param int $index
+     * @param int $destIndex
+     */
     public function move($index, $destIndex)
     {
         $obj = $this->array[$index];
         array_splice($this->array, $index, 1);
         array_splice($this->array, $destIndex, 0, $obj);
     }
-
-    public function toString()
-    {
-    }
+   
 }
