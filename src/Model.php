@@ -514,9 +514,14 @@ class Model
      * @param string $className A class name of relationship.
      * @param int|string|string[] $foreignKey (optional) A key of $IntermediateClass.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this.
+     * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
+     *  <ul>               
+     *   <li> true : sort-merge</li>
+     *   <li> false : nested loop</li>
+     *  </ul>
      * @return \Transactd\Relation
      */
-    protected function hasOne($className, $foreignKey = null, $keyValuePropertyNames = null)
+    protected function hasOne($className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = true)
     {
         $funcName = debug_backtrace()[1]['function'];
         $self = get_class($this);
@@ -533,7 +538,6 @@ class Model
             $foreignKey = $this->getRelationDestKeyNum($className, $foreignKey);
         }
         $keyValuePropertyNames = $this->getPrimaryKeyFieldName($keyValuePropertyNames);
-        $optimize = true;
         $rel = new Relation($self, $keyValuePropertyNames, $funcName, $className, $foreignKey, $optimize, Relation::TYPE_HAS_ONE);
         self::$rerations[$key] = $rel;
         $rel->setParent($this);
@@ -571,12 +575,16 @@ class Model
      * @param string $className A class name of relationship.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this.
      * @param int|string|string[] $otherKey (optional) A key of $className
+     * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
+     *  <ul>               
+     *   <li> true : sort-merge</li>
+     *   <li> false : nested loop</li>
+     *  </ul>
      * @return \Transactd\Relation
      */
-    protected function belongsTo($className, $keyValuePropertyNames = null, $otherKey = null)
+    protected function belongsTo($className, $keyValuePropertyNames = null, $otherKey = null,  $optimize = true)
     {
         $funcName = debug_backtrace()[1]['function'];
-        $optimize = true;
         return $this->doBelongsTo($funcName, $className, $keyValuePropertyNames, $otherKey, $optimize);
     }
 
@@ -612,12 +620,16 @@ class Model
      * @param string $className A class name of relationship.
      * @param int|string|string[] $foreignKey (optional) A key of $className.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this.
+     * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
+     *  <ul>               
+     *   <li> true : sort-merge</li>
+     *   <li> false : nested loop</li>
+     *  </ul>
      * @return \Transactd\Relation
      */
-    protected function hasMany($className, $foreignKey = null, $keyValuePropertyNames = null)
+    protected function hasMany($className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = true)
     {
         $funcName = debug_backtrace()[1]['function'];
-        $optimize = true;
         return $this->doHasMany(Relation::TYPE_HAS_MANY, $funcName, $className, $foreignKey, $keyValuePropertyNames, $optimize);
     }
 

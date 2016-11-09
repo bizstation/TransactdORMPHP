@@ -232,8 +232,6 @@ class Relation
     {
         $indexes = array();
         for ($i = 0; $i < count($srcMdls); ++$i) {
-            $indexes[$i] = array();
-            array_push($indexes[$i], $i);
             $this->addSeekValue($srcMdls[$i], $q, $propertyName, $segments);
         }
         return $indexes;
@@ -275,10 +273,7 @@ class Relation
         }
         return array();
     }
-
-    /**
-     * Caching relational models
-     */
+        
     private function doResolveRelations($srcMdls, $arrayResult = false)
     {
         if (count($srcMdls) > 0) {
@@ -287,11 +282,49 @@ class Relation
             $segments = $this->getSegments($propertyNames);
 
             $q->segmentsForInValue($segments);
-            if ($this->optimize === false) {
-                $indexes = $this->nonOptimizedIndexArray($q, $srcMdls, $propertyNames, $segments);
+            $this->nonOptimizedIndexArray($q, $srcMdls, $propertyNames, $segments);
+            $qe = Model::queryExecuter($this->destClassName);
+            $rs = $this->doReadRelations($qe, $q, $this->destIndex);
+            $ret = array();
+            if (($this->type & self::TYPE_HAS_MANY) === self::TYPE_HAS_MANY) {
+                $grps = $this->grouping($rs, $this->destIndexFields, $segments);
+                //set relation value
+                $size = count($srcMdls);
+                for ($i = 0; $i < $size; ++$i) {
+                    if ($this->subRelation !== null) {
+                        array_push($ret, $grps[$i]);
+                    } else {
+                        $srcMdls[$i]->{$this->srcMethodName} = $qe->arrayToCollection($grps[$i], $this);
+                    } 
+                }
             } else {
-                $indexes = $this->optimizedIndexArray($q, $srcMdls, $propertyNames, $segments);
+                $size = count($rs);
+                for ($i = 0; $i < $size; ++$i) {
+                    $obj = $rs[$i];
+                    if ($obj !== null) {
+                        $qe->pushToCache($obj);
+                    }
+                    if ($arrayResult === true) {
+                        array_push($ret, $obj);
+                    } else {
+                        $srcMdls[$i]->{$this->srcMethodName} = $obj;
+                    }
+                }
             }
+            return $ret;
+        }
+        return array();
+    }
+    
+    private function doResolveRelationsOptimize($srcMdls, $arrayResult = false)
+    {
+        if (count($srcMdls) > 0) {
+            $propertyNames = $this->srcKeyValueFieldNames;
+            $q = new Query();
+            $segments = $this->getSegments($propertyNames);
+
+            $q->segmentsForInValue($segments);
+            $indexes = $this->optimizedIndexArray($q, $srcMdls, $propertyNames, $segments);
             $qe = Model::queryExecuter($this->destClassName);
             $rs = $this->doReadRelations($qe, $q, $this->destIndex);
             $ret = array();
@@ -301,13 +334,13 @@ class Relation
                 $size = count($indexes);
                 for ($i = 0; $i < $size; ++$i) {
                     $tmp = $indexes[$i];
-                    foreach ($tmp as $index) {
-                        if ($this->subRelation !== null) {
-                            array_push($ret, $grps[$i]);
-                        } else {
-                            $srcMdls[$index]->{$this->srcMethodName} = $qe->arrayToCollection($grps[$i], $this);
-                        }
-                    }
+                     foreach ($tmp as $index) {
+                         if ($this->subRelation !== null) {
+                             array_push($ret, $grps[$i]);
+                         } else {
+                             $srcMdls[$index]->{$this->srcMethodName} = $qe->arrayToCollection($grps[$i], $this);
+                         }
+                     } 
                 }
             } else {
                 $size = count($rs);
@@ -316,6 +349,7 @@ class Relation
                     if ($obj !== null) {
                         $qe->pushToCache($obj);
                     }
+                    
                     $tmp = $indexes[$i];
                     foreach ($tmp as $index) {
                         if ($arrayResult === true) {
@@ -361,7 +395,11 @@ class Relation
                 array_push($flatArray, $obj);
             }
         }
-        $r = $this->subRelation->doResolveRelations($flatArray, true);
+        if ($this->optimize === true) {
+            $r = $this->subRelation->doResolveRelationsOptimize($flatArray, true);
+        } else {
+            $r = $this->subRelation->doResolveRelations($flatArray, true);
+        }
         $n = 0;
         for ($i = 0; $i < count($mdls); ++$i) {
             $tmp = array();
@@ -433,7 +471,12 @@ class Relation
         if (($this->type & self::TYPE_MORPHTO) === self::TYPE_MORPHTO) {
             throw new \BadMethodCallException('[with] method is not support in this relation type.');
         }
-        $ret = $this->doResolveRelations($srcMdls);
+        if ($this->optimize === true) {
+            $ret = $this->doResolveRelationsOptimize($srcMdls);
+        } else {
+            $ret = $this->doResolveRelations($srcMdls);
+        }
+        
         if ($this->subRelation !== null) {
             $this->resolveSubReleation($srcMdls, $ret);
         }
