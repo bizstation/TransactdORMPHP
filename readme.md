@@ -26,12 +26,12 @@ Execution environment
 Install
 -------------------------------------------------------------------------------
 ### Composer
-1. Install via the composer.
+* Install via the composer.
 ```
 $ cd [yourProjectDirectory]
 $ composer require Trnasactd/orm
 ```
-2. Add the following to the beginning of your code.(If not added.)
+* Add the following to the beginning of your code.(If not added.)
 ```
 <?php
 require __DIR__ . '/vendor/autoload.php'
@@ -54,11 +54,11 @@ If you specify a different host, the write operation is the master and the read
  operation is processed by the slave.
 
 ### Laravel 5.1 above
-1. Add the following class to your config/app.php service providers list.
+* Add the following class to your config/app.php service providers list.
 ```
 Transactd\boot\Laravel\TransactdLaravelServiceProvider::class,
 ```
-2. Add following parameters to your .env file.
+* Add following parameters to your .env file.
 ```
 // Master and Slave. These are possible to same host.
 TRANSACTD_MASTER=tdap://yousername@your_master_host/your_database?&pwd=xxxx
@@ -67,7 +67,7 @@ TRANSACTD_SLAVE=tdap://yousername@your_slave_host/your_database?&pwd=xxxx
 ```
 
 ### Otherwise
-1. Add the following code to your application code at beggining.
+* Add the following code to your application code at beggining.
 ```
 class_alias('Transactd\DatabaseManager', 'DB');
 $masterUri = 'tdap://yousername@your_master_host/your_database?&pwd=xxxx';
