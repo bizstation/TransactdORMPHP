@@ -2,61 +2,68 @@
 
 namespace Transactd;
 
-class Serializer
+trait Serializer
 {
     /**
-     * Specified array returns whether or not the hash.
-     * 
-     * @param array $array
-     * @return bool
+     *
+     * @var type A class name for serizlization.
      */
-    public static function isHash(&$array)
+    protected $className;
+    
+    /**
+     * Return a JSON text of this model
+     *
+     * @return string
+     */
+    public function toString()
     {
-        $i = 0;
-        foreach ($array as $k => $v) {
-            if ($k !== $i++) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static function arrayToStr($array)
-    {
-        $s = '';
-        if (count($array) === 0) {
-            return '[]';
-        }
-        $hash = self::isHash($array);
-        if ($hash === true) {
-            $tmp = '{';
-            foreach ($array as $key => $v) {
-                if (method_exists($v, 'toString')) {
-                    $tmp .= '"'.$key.'":'.$v->toString();
-                } else {
-                    $tmp .= '"'.$key.'":'.json_encode($v);
-                }
-                $tmp .= ',';
-            }
-            $s .= substr($tmp, 0, -1).'}';
-        } else {
-            $tmp = '[';
-            foreach ($array as $v) {
-                if (method_exists($v, 'toString')) {
-                    $tmp .= $v->toString();
-                } else {
-                    $tmp .= json_encode($v);
-                }
-                $tmp .= ',';
-            }
-            $s .= substr($tmp, 0, -1).']';
-        }
-        return $s;
+        return static::serialize($this);
     }
     
     /**
+     * Return a JSON text of this model
+     *
+     * @return string
+     */
+    public function toJson()
+    {
+        return $this->toString();
+    }
+    /**
+     * Copy contents of the original model.
+     *
+     * @param \Transactd\Model $src model of original
+     * @return $this
+     * @throws \InvalidArgumentException
+     */
+    public function assign($src)
+    {
+        if (is_object($src)) {
+            foreach ($src as $key => $v) {
+                $this->{$key} = static::chengeObjectType($v);
+            }
+            return $this;
+        }
+        throw new \InvalidArgumentException('$src is not object.');
+    }
+    
+    /**
+     * Create a new instance or clone model
+     *
+     * @param \Transactd\Model $src (optional) For clone
+     * @return \Transactd\Model
+     */
+    public static function createInstance($src = null)
+    {
+        $obj = new static();
+        if ($src !== null) {
+            $obj->assign($src);
+        }
+        return $obj;
+    }
+    /**
      * Change object types by 'className'.
-     * 
+     *
      * @param object $v
      * @return object
      */
@@ -71,10 +78,7 @@ class Serializer
             $ar = array();
             foreach ($v as $v1) {
                 if (is_array($v1) && array_key_exists('className', $v1) === true) {
-                    /*if (is_object($v1))
-                        $tmp = $v1->{'className'};
-                    else*/
-                        $tmp = $v1['className'];
+                    $tmp = $v1['className'];
                     array_push($ar, $tmp::createInstance($v1));
                 } else {
                     array_push($ar, $v1);
@@ -87,38 +91,50 @@ class Serializer
 
     /**
      * Serializes to JSON string.
-     * 
+     *
      * @param object $obj
      * @return string
      */
     public static function serialize($obj)
     {
         $s = '{';
-        foreach ($obj as $key => $value) {
-            if (strpos($key, '__') !== 0) {
-                $s .= '"'.$key.'":';
-                $s .= json_encode($value).',';
+        $props =  get_object_vars($obj);
+        foreach ($props as $key => $value) {
+            $s .= '"'.$key.'":';
+            if (is_object($value) === true) {
+                if ($value instanceof Collection) {
+                    $s .= $value->toString();
+                } else {
+                    $s .= Model::serialize($value);
+                }
+            } else {
+                $s .= json_encode($value);
             }
-        }
-		$className = get_class($obj);
-        if (is_object($obj) && property_exists($className,  'serialize')) {
-            foreach ($className::$serialize as $key) {
-                $s .= '"'.$key.'":';
-                $s .= json_encode($obj->{$key}).',';
-            }
+            $s .= ',';
         }
         return substr($s, 0, -1).'}';
     }
 
     /**
      * Deserializes from JSON string.
-     * 
+     *
      * @param string $json
      * @return object
      */
     public static function deSerialize($json)
     {
         $obj = json_decode($json, false);
-        return self::chengeObjectType($obj);
+        return static::chengeObjectType($obj);
+    }
+    
+    /**
+     * Deserializes from JSON string.
+     *
+     * @param string $json
+     * @return object
+     */
+    public static function fromJson($json)
+    {
+        return static::deSerialize($json);
     }
 }

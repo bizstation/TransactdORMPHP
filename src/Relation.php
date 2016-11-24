@@ -13,7 +13,6 @@ class Relation
     private $optimize;
     private $type = 0;
     private $destIndexFields;
-    private $caching = true;
     private $parent = null;
     private $subRelation = null;
     private $morphClassMap = null;
@@ -21,8 +20,9 @@ class Relation
     const TYPE_HAS_MANY = 1;
     const TYPE_BELONGSTO = 2;
     const TYPE_BELONGSTO_MANY = 3;
-    const TYPE_MORPHTO = 4;
+    const TYPE_MORPHONE = 4;
     const TYPE_MORPHMANY = 5;
+    const TYPE_MORPHTO = 6;
     const TYPE_MORPHEDBYMANY = 7;
 
     private function getFieldValue($obj, $propertyName)
@@ -47,7 +47,7 @@ class Relation
     }
 
     /**
-     * 
+     *
      * @param string $srcClassName
      * @param string[] $srcKeyValueFieldNames Property name(s) of the owner class or fixed value. <br/>
      *                 Fixed values are enclosed in []<br/>
@@ -56,7 +56,7 @@ class Relation
      * @param string $destClassName The class name of relationship.
      * @param int $destIndex Index number of $destClassName table.
      * @param bool $optimize Whether to use the sort-merge or nested loop at the time of batch processing<br/>
-     *  <ul>               
+     *  <ul>
      *   <li> true : sort-merge</li>
      *   <li> false : nested loop</li>
      *  </ul>
@@ -80,17 +80,20 @@ class Relation
     
     /**
      * Set a class-map for TYPE_MORPHTO
-     * 
+     *
      * @param array $valueClassMap [[fieldValue => class name], ...]
+     * @param array $valueClassMap
+     * @return \Transactd\Relation
      */
     public function setMorphClassMap(array $valueClassMap)
     {
         $this->morphClassMap = $valueClassMap;
+        return $this;
     }
 
     /**
      * Get the relation type.
-     * 
+     *
      * @return int
      */
     public function getType()
@@ -114,9 +117,7 @@ class Relation
         $ar = array();
         foreach ($rs as $obj) {
             if ($obj !== null) {
-                if ($this->caching === true) {
-                    $q->pushToCache($obj);
-                }
+                $q->addToCache($obj);
                 array_push($ar, $obj);
             }
         }
@@ -149,6 +150,7 @@ class Relation
                     return false;
                 }
             }
+            return true;
         } elseif (is_array($fields) === true) {
             return $r->{$fields[0]} === $l->{$fields[0]};
         }
@@ -205,7 +207,7 @@ class Relation
 
     /**
      * $indexes = [[0,[1,2]],[1,[3,4]]]
-     * @return array 
+     * @return array
      */
     private function optimizedIndexArray($q, $srcMdls, $propertyName, $segments)
     {
@@ -264,14 +266,24 @@ class Relation
             $ret = array();
             for ($i = 0; $i < $size; ++$i) {
                 $obj = $rs[$i];
-                if ($obj !== null) {
-                    $qe->pushToCache($obj);
-                }
+                $qe->addToCache($obj);
                 array_push($ret, $obj);
             }
             return $ret;
         }
         return array();
+    }
+    
+    private function getQueryExecuter($obj)
+    {
+        $class = $this->destClassName;
+        if (($this->type & self::TYPE_MORPHTO) === self::TYPE_MORPHTO) {
+            $class = $this->getFieldValue($obj, $this->srcKeyValueFieldNames[0]);
+            if ($this->morphClassMap !== null) {
+                $class = $this->morphClassMap[$class];
+            }
+        }
+        return Model::queryExecuter($class);
     }
         
     private function doResolveRelations($srcMdls, $arrayResult = false)
@@ -283,7 +295,7 @@ class Relation
 
             $q->segmentsForInValue($segments);
             $this->nonOptimizedIndexArray($q, $srcMdls, $propertyNames, $segments);
-            $qe = Model::queryExecuter($this->destClassName);
+            $qe = $this->getQueryExecuter($srcMdls[0]);
             $rs = $this->doReadRelations($qe, $q, $this->destIndex);
             $ret = array();
             if (($this->type & self::TYPE_HAS_MANY) === self::TYPE_HAS_MANY) {
@@ -295,15 +307,13 @@ class Relation
                         array_push($ret, $grps[$i]);
                     } else {
                         $srcMdls[$i]->{$this->srcMethodName} = $qe->arrayToCollection($grps[$i], $this);
-                    } 
+                    }
                 }
             } else {
                 $size = count($rs);
                 for ($i = 0; $i < $size; ++$i) {
                     $obj = $rs[$i];
-                    if ($obj !== null) {
-                        $qe->pushToCache($obj);
-                    }
+                    $qe->addToCache($obj);
                     if ($arrayResult === true) {
                         array_push($ret, $obj);
                     } else {
@@ -325,7 +335,7 @@ class Relation
 
             $q->segmentsForInValue($segments);
             $indexes = $this->optimizedIndexArray($q, $srcMdls, $propertyNames, $segments);
-            $qe = Model::queryExecuter($this->destClassName);
+            $qe = $this->getQueryExecuter($srcMdls[0]);
             $rs = $this->doReadRelations($qe, $q, $this->destIndex);
             $ret = array();
             if (($this->type & self::TYPE_HAS_MANY) === self::TYPE_HAS_MANY) {
@@ -334,22 +344,19 @@ class Relation
                 $size = count($indexes);
                 for ($i = 0; $i < $size; ++$i) {
                     $tmp = $indexes[$i];
-                     foreach ($tmp as $index) {
-                         if ($this->subRelation !== null) {
-                             array_push($ret, $grps[$i]);
-                         } else {
-                             $srcMdls[$index]->{$this->srcMethodName} = $qe->arrayToCollection($grps[$i], $this);
-                         }
-                     } 
+                    foreach ($tmp as $index) {
+                        if ($this->subRelation !== null) {
+                            array_push($ret, $grps[$i]);
+                        } else {
+                            $srcMdls[$index]->{$this->srcMethodName} = $qe->arrayToCollection($grps[$i], $this);
+                        }
+                    }
                 }
             } else {
                 $size = count($rs);
                 for ($i = 0; $i < $size; ++$i) {
                     $obj = $rs[$i];
-                    if ($obj !== null) {
-                        $qe->pushToCache($obj);
-                    }
-                    
+                    $qe->addToCache($obj);
                     $tmp = $indexes[$i];
                     foreach ($tmp as $index) {
                         if ($arrayResult === true) {
@@ -406,13 +413,14 @@ class Relation
             for ($j = 0; $j < count($mdls[$i]); ++$j) {
                 array_push($tmp, $r[$n++]);
             }
-            $srcMdls[$i]->{$this->srcMethodName} = $tmp;
+            $srcMdls[$i]->{$this->srcMethodName} = 
+                    Model::queryExecuter($this->destClassName)->arrayToCollection($tmp, $this, $srcMdls[$i]);
         }
     }
 
     /**
      * Get the relation results from the database.
-     * 
+     *
      * @param \Transactd\Model $src The source model.
      * @return \Transactd\Model|\Transactd\Collection
      */
@@ -424,8 +432,8 @@ class Relation
             if ($this->subRelation !== null) {
                 $ret = $this->subRelation->doResolvManyToArray($ret);
             }
-            $tmp = $this->destClassName;
-            return $tmp::queryExecuter()->arrayToCollection($ret, $this, $src);
+            $class = $this->destClassName;
+            return $class::queryExecuter()->arrayToCollection($ret, $this, $src);
         } elseif (($this->type & self::TYPE_MORPHTO) === self::TYPE_MORPHTO) {
             $class = $values[0];
             if ($this->morphClassMap !== null) {
@@ -433,13 +441,13 @@ class Relation
             }
             return $class::find($values[1]);
         }
-        $tmp = $this->destClassName;
-        return $tmp::findWithIndex($this->destIndex, $values);
+        $class = $this->destClassName;
+        return $class::index($this->destIndex)->find($values);
     }
 
     /**
      * Delete matched records by relationship conditions.
-     * 
+     *
      * @param string  $src The source model.
      * @return int  Count of effects.
      */
@@ -450,7 +458,7 @@ class Relation
         if (($this->type & self::TYPE_HAS_MANY) !== self::TYPE_HAS_MANY) {
             return 0;
         }
-        $rs = $this->getMany( $values, false);
+        $rs = $this->getMany($values, false);
         foreach ($rs as $obj) {
             if ($obj !== null) {
                 $obj->delete();
@@ -462,15 +470,12 @@ class Relation
 
     /**
      * The relation of the specified collection, and then batch acquisition.
-     * 
+     *
      * @param \Transactd\Collection|\Transactd\Model[] $srcMdls Collection of model
      * @throws \BadMethodCallException
      */
     public function resolveRelations($srcMdls)
     {
-        if (($this->type & self::TYPE_MORPHTO) === self::TYPE_MORPHTO) {
-            throw new \BadMethodCallException('[with] method is not support in this relation type.');
-        }
         if ($this->optimize === true) {
             $ret = $this->doResolveRelationsOptimize($srcMdls);
         } else {
@@ -494,10 +499,10 @@ class Relation
     /**
      * Create a new model by this relationship condition and attributes.<br/>
      * This operation do not save to database.
-     * 
+     *
      * @param array $attributes
      * @return \Transactd\Model
-     * @throws \BadMethodCallException
+     * @throws \BadMethodCallException, \InvalidArgumentException
      */
     public function create($attributes)
     {
@@ -530,8 +535,17 @@ class Relation
     }
     
     /**
+     * Get WritableTable for destClass
+     * @return \BizStataion\Transactd\Table
+     */
+    public function getWritableTable()
+    {
+        return Model::queryExecuter($this->destClassName)->getWritableTable();
+    }
+    
+    /**
      * Save the intermediate model of many-to-many, to the database.
-     * 
+     *
      * @param \Transactd\Model $parent
      * @param \Transactd\Model $child
      * @return bool
@@ -543,7 +557,7 @@ class Relation
 
     /**
      * Delete the intermediate object of many-to-many, from the database.
-     * 
+     *
      * @param \Transactd\Model $parent
      * @param \Transactd\Model $child
      * @return bool
@@ -555,9 +569,10 @@ class Relation
 
     /**
      * Save the relationship result model to the database.
-     * 
+     *
      * @param \Transactd\Model $model
      * @return \Transactd\Model
+     * @throws \InvalidArgumentException
      */
     public function save($model)
     {
@@ -575,16 +590,16 @@ class Relation
 
     /**
      * Copy the parent model values of relationship.
-     * 
+     *
      * @param \Transactd\Model $child
      * @return void
      * @throws \InvalidArgumentException
      */
     public function copyParentValues($child)
     {
-        if (removeNameSpace(get_class($child)) !== removeNameSpace($this->destClassName)) {
+        if (remove_namespace(get_class($child)) !== remove_namespace($this->destClassName)) {
             if ($this->subRelation !== null) {
-                if (removeNameSpace(get_class($child)) !== removeNameSpace($this->subRelation->destClassName)) {
+                if (remove_namespace(get_class($child)) !== remove_namespace($this->subRelation->destClassName)) {
                     $msg = 'arg1('.get_class($child).')is not class of '.$this->subRelation->destClassName;
                     throw new \InvalidArgumentException($msg);
                 }
@@ -595,13 +610,12 @@ class Relation
             }
         }
         $child = $this->copyValues($child, $this->parent,
-        $this->srcKeyValueFieldNames, $this->destIndexFields);
+                    $this->srcKeyValueFieldNames, $this->destIndexFields);
     }
-
 
     /**
      * Associate the model instance to the this parent.
-     * 
+     *
      * @param \Transactd\Model $model
      * @return \Transactd\Model
      * @throws \BadMethodCallException
@@ -611,13 +625,29 @@ class Relation
         if (($this->type & self::TYPE_BELONGSTO) !== self::TYPE_BELONGSTO) {
             throw new \BadMethodCallException('[associate] method is not support in this relation type.');
         }
+        if ($this->type === self::TYPE_MORPHTO) {
+            //Fixed order. 1 type 2 id
+            $type = get_class($model);
+            $ids = $model->queryExecuter()->primaryKeyFieldNames();
+            if ($this->morphClassMap !== null) {
+                $key = array_search($type, $this->morphClassMap, true);
+                if ($key !== false) {
+                    $type = $key;
+                } else {
+                    throw new \InvalidArgumentException('Can not found class name form morphClassMap.');
+                }
+            }
+            array_splice($ids, 0, 0, ['['.$type.']']);
+            return $this->copyValues($this->parent, $model, $ids,
+                    $this->srcKeyValueFieldNames);
+        }
         return $this->copyValues($this->parent, $model, $this->destIndexFields,
                     $this->srcKeyValueFieldNames);
     }
     
     /**
      * Dissociate the model from the this parent.
-     * 
+     *
      * @param \Transactd\Model $model
      * @return \Transactd\Model
      * @throws \BadMethodCallException
@@ -642,7 +672,7 @@ class Relation
 
     /**
      * Add a sub relationship model for mny-to-many.
-     * 
+     *
      * @param string $className A class name of relationship.
      * @param int $index Index number of $className table for search.
      * @param string[] $keyValueFieldNames Property name(s) of this or fixed value. <br/>
@@ -665,7 +695,7 @@ class Relation
 
     /**
      * Add a sub relationship object for mny-to-many.
-     * 
+     *
      * @param \Transactd\Relation $rel A relationship object
      * @throws \BadMethodCallException
      */
@@ -680,7 +710,7 @@ class Relation
     
     /**
      * It returns whether there is a sub-relation.
-     * 
+     *
      * @return bool
      */
     public function hasSubReleation()

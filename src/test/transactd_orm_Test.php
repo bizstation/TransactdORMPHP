@@ -15,9 +15,7 @@ use BizStation\Transactd\GroupQuery;
 use BizStation\Transactd\Count;
 use BizStation\Transactd\Query;
 use Transactd\Model;
-use Transactd\CachedQueryExecuter;
 use Transactd\IOException;
-use Transactd\Serializer;
 use Transactd\Collection;
 
 
@@ -42,7 +40,7 @@ class Cust extends Model
     }
     public static function creating($user)
     {
-        var_dump('Cust creating called user->id = '.$user->id);
+        echo 'Cust creating called user->id = '.$user->id.PHP_EOL;
         return false;
     }
     
@@ -55,17 +53,18 @@ class Cust extends Model
 class Customer extends Model
 {
     /** @var Addresss */
+    private $hoge = '123';
     protected $address = null;
     protected $address3 = null;
     protected static $aliases = ['名前' => 'name'];
     protected static $fillable = ['id','name','option','phone'];
-    public static $serialize = ['name'];
+    //public static $serialize = ['name'];
     /**
      *
      * @var array field name => property name of object. Do not use __get __set magic method
      * Map the variable is required. If the variable is null then field values are not read or write.
      */
-    static protected $transferMap = ['zip' => ['address'], 'address1' => 'address', 'address2' => 'address3'];
+    static protected $transferMap = ['zip' => 'address', 'address1' => 'address', 'address2' => 'address3'];
     protected $id;
     protected $name;
     
@@ -76,7 +75,7 @@ class Customer extends Model
     }
     public static function creating($user)
     {
-        var_dump('Customer creating called user->id = '.$user->id);
+        echo 'Customer creating called user->id = '.$user->id.PHP_EOL;
         return true;
     }
     
@@ -137,7 +136,7 @@ class Customer extends Model
 
     public function tags2()
     {
-        return $this->relation('Taggable', 1, ['[customer]', 'id'])->addSubRelation('Tag', 0, 'tag_id');
+        return $this->relation('Taggable', 1, ['[Customer]', 'id'])->addSubRelation('Tag', 0, 'tag_id');
     }
     
     public function __get($var)
@@ -164,11 +163,11 @@ class Customer extends Model
 
 class Follower extends Model
 {
-    protected $primaryKey = ['following_id', 'followed_id'];
+    //protected $primaryKey = ['following_id', 'followed_id'];
     public $timestamps = false;
     public static function creating($folower)
     {
-        var_dump('Follower creating called  folower->following_id = '.$folower->following_id);
+        echo 'Follower creating called  folower->following_id = '.$folower->following_id.PHP_EOL;
         return true;
     }
     
@@ -230,7 +229,7 @@ class Group extends Model
     
     public function tags2()
     {
-        return $this->relation('Taggable', 1, ['[group]', 'id'])->addSubRelation('Tag', 0, 'tag_id');
+        return $this->relation('Taggable', 1, ['[Group]', 'id'])->addSubRelation('Tag', 0, 'tag_id');
     }
 }
 
@@ -752,10 +751,6 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     
     public function testTimeStamp()
     {
-        CachedQueryExecuter::$returnClone = false;
-        $this->doTestTimeStamp();
-        // Test cache refreshed
-        CachedQueryExecuter::$returnClone = true;
         $this->doTestTimeStamp();
         $this->showMemoryUsage();
     }
@@ -1022,6 +1017,9 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(count($customers), 10);
         $this->assertEquals($customers[0]->id, 1);
         $this->assertEquals($customers[9]->id, 10);
+        
+        $customers = Customer::take(10)->all();
+        $this->assertEquals(count($customers), 10);
         $this->showMemoryUsage();
     }
     
@@ -1032,6 +1030,9 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(count($customers), 10);
         $this->assertEquals($customers[0]->id, 21);
         $this->assertEquals($customers[9]->id, 30);
+        
+        $customers = Customer::skip(10)->all();
+        $this->assertEquals(count($customers), 10000-10);
         $this->showMemoryUsage();
     }
     
@@ -1392,9 +1393,8 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     {
         $c = Customer::find(1);
         $name = $c->getPrimaryKeyFieldName(null);
-        $this->assertEquals($name, 'id');
-        $c->primaryKey = 'abc';
-        $name = $c->getPrimaryKeyFieldName(null);
+        $this->assertEquals($name, ['id']);
+        $name = $c->getPrimaryKeyFieldName('abc');
         $this->assertEquals($name, 'abc');
         $name = $c->getPrimaryKeyFieldName('efg');
         $this->assertEquals($name, 'efg');
@@ -1429,6 +1429,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->assertEquals($ext->id, 3);
         
         //erase cache test not find
+        Customer::clear();
         $ext->delete();
         $c = Customer::find(3);
         $ext = $c->ext;
@@ -1454,7 +1455,6 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     
     public function testBelongsTo()
     {
-        CachedQueryExecuter::$returnClone = false;
         $c = Customer::find(5);
         $ext = $c->extension;
         $this->assertEquals($ext->id, 5);
@@ -1646,6 +1646,45 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         DB::slave()->endSnapshot();
         $this->showMemoryUsage();
     }
+    
+        public function testUTCCObj()
+    {
+        $tb = DB::master()->openTable("customers");
+        $tb->seekFirst();
+        $this->assertEquals($tb->stat(), 0);
+        $customer = Customer::first();
+
+        DB::beginTrn();
+        $tb->setFV("名前", 'John');
+        $tb->update();
+        $this->assertEquals($tb->stat(), 0);
+        $customer->name = 'mike';
+        Customer::updateConflictCheck(true);
+        try {
+            $customer->save();
+            $this->assertEquals(1, 0);
+        } catch (IOException $e) {
+            $this->assertEquals($e->getCode(), Transactd::STATUS_CHANGE_CONFLICT);
+        }
+        DB::abortTrn();
+        $tb->seekFirst();
+        $this->assertEquals($tb->stat(), 0);
+        $customer = Customer::first();
+        DB::beginTrn();
+
+        $tb->setFV("名前", 'John');
+        $tb->update();
+        $this->assertEquals($tb->stat(), 0);
+        $customer->name = 'mike';
+        Customer::updateConflictCheck(false);
+        try {
+            $this->assertEquals($customer->save(), true);
+        } catch (IOException $e) {
+            $this->assertEquals(1, 0);
+        }
+        DB::abortTrn();
+        $this->showMemoryUsage();
+    }
 
     public function testJson()
     {
@@ -1654,9 +1693,8 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $c2->followings;
         $c2->name = '感じ';
         $json = $c2->toJson();
-        
         // decode from json to stdClass
-        $c = Serializer::deSerialize($json);
+        $c = Model::deSerialize($json);
         $this->assertEquals($c->name, '感じ');
         $this->assertEquals($json, $c->toString());
         $this->showMemoryUsage();
@@ -1696,7 +1734,6 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $grp = Group::find(3);
         $this->assertEquals($grp->id, 3);
         $this->assertEquals(count($grp->customers), 2000);
-        
         $customer = Customer::find(1000);
         $customer->grp()->associate($grp);
         $this->assertEquals($customer->group, 3);
@@ -1776,46 +1813,60 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->showMemoryUsage();
     }
     
-    public function testUTCCObj()
+    public function testCollectionAccess()
     {
-        $tb = DB::master()->openTable("customers");
-        $tb->seekFirst();
-        $this->assertEquals($tb->stat(), 0);
-        $customer = Customer::first();
-
-        DB::beginTrn();
-        $tb->setFV("名前", 'John');
-        $tb->update();
-        $this->assertEquals($tb->stat(), 0);
-        $customer->name = 'mike';
-        Customer::updateConflictCheck(true);
-        try {
-            $customer->save();
-            $this->assertEquals(1, 0);
-            $this->assertEquals(Model::$saveHistory, null);
-        } catch (IOException $e) {
-            $this->assertEquals(Model::$saveHistory, null);
-            $this->assertEquals($e->getCode(), Transactd::STATUS_CHANGE_CONFLICT);
+        $array = array(); 
+        $cust = new Customer();
+        $cust->id = 0;
+        array_push($array, $cust);
+        $cust = new Customer();
+        $cust->id = 1;
+        array_push($array, $cust);
+        $cust = new Customer();
+        $cust->id = 2;
+        array_push($array, $cust);
+        $collection = new Collection($array);
+        $this->assertEquals($collection[0]->id, 0);
+        $this->assertEquals($collection[1]->id, 1);
+        $this->assertEquals($collection[2]->id, 2);
+        $i = 0;
+        foreach($collection as $cust) {
+            $this->assertEquals($cust->id, $i++);
         }
-        DB::abortTrn();
-        $tb->seekFirst();
-        $this->assertEquals($tb->stat(), 0);
-        $customer = Customer::first();
-        DB::beginTrn();
-
-        $tb->setFV("名前", 'John');
-        $tb->update();
-        $this->assertEquals($tb->stat(), 0);
-        $customer->name = 'mike';
-        Customer::updateConflictCheck(false);
-        try {
-            $this->assertEquals($customer->save(), true);
-        } catch (IOException $e) {
-            $this->assertEquals(1, 0);
+        // insert 
+        $cust = new Customer();
+        $cust->id = 3;
+        $collection->insert(0, $cust);
+        $this->assertEquals($collection[0]->id, 3);
+        $ids = [3,0,1,2];
+        $i = 0;
+        foreach($collection as $cust) {
+            $this->assertEquals($cust->id, $ids[$i++]);
         }
-        $this->assertEquals(Model::$saveHistory, null);
-        DB::abortTrn();
-        $this->showMemoryUsage();
+        for($i = 0; $i < count($collection); ++$i) {
+            $this->assertEquals($collection[$i]->id, $ids[$i]);
+        }
+        // move
+        $collection->move(0, 3);
+        $i = 0;
+        foreach($collection as $cust) {
+            $this->assertEquals($cust->id, $i++);
+        }
+        for($i = 0; $i < count($collection); ++$i) {
+            $this->assertEquals($collection[$i]->id, $i);
+        }
+        
+        //remove
+        $collection->remove(1);
+        $ids = [0,2,3];
+        $i = 0;
+        foreach($collection as $cust) {
+            $this->assertEquals($cust->id, $ids[$i++]);
+        }
+        for($i = 0; $i < count($collection); ++$i) {
+            $this->assertEquals($collection[$i]->id, $ids[$i]);
+        }
+         
     }
     
     public function testCollectionSave()
@@ -1845,7 +1896,6 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $grp->save();
         $id = $grp->id;
         DB::endTrn();
-        $this->assertEquals(Model::$saveHistory, null);
         $grp = Group::find($id);
         $this->assertEquals(count($grp->customers), 3);
         $this->assertEquals($grp->customers[0]->name, 'Jhon');
@@ -1856,6 +1906,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->assertEquals($grp, null);
         $this->showMemoryUsage();
     }
+    
     public function testMorph()
     {
         $c = new Comment;
@@ -1864,7 +1915,8 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $cust->id = 0;
         $cust->name = 'kaito';
         $cust->comments->add($c);
-        $cust->save();
+        $cust->save(Model::SAVE_WITH_RELATIONS);
+        
         $cid = $cust->id;
         $cust = $c->commentable;
         $this->assertEquals($cust->id, $cid);
@@ -1874,7 +1926,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $c->note = 'efg';
         $grp = Group::find(1);
         $grp->comments->add($c);
-        $grp->save();
+        $grp->save(Model::SAVE_WITH_RELATIONS);
         unset($grp);
         $id = $c->id;
         $c = Comment::find($id);
@@ -1890,7 +1942,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $grp->comments->delete();
         
         $cust = Customer::find($cid);
-        $cust->delete();
+        $cust->delete(Model::SAVE_WITH_RELATIONS);
         
         $comments = Comment::all();
         $this->assertEquals(count($comments), 0);
@@ -1910,16 +1962,12 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $cust->comments2->add($c);
         $cc = $c->commentable2; // retun null
         $this->assertEquals($cc, null);
-        $cust->save(); // autoinc id is setted
+        $cust->save(Model::SAVE_WITH_RELATIONS); // autoinc id is setted
         $cid = $cust->id;
         
         $cust = $c->commentable2; // retun not null
         $this->assertEquals($cust->id, $cid);
         $this->assertEquals($c->parent_type, 1);
-        Model::$detectRecursiveSave = false;
-        $cust->save();
-        // detect save duplicate with recursive
-        $this->assertEquals(Model::$detectRecursiveSave, true);
         
         $c = new Comment;
         $c->id = 0;
@@ -2031,7 +2079,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $tags = $cust->tags;
         $tags->add($tag);
         $tags->add($tag1);
-        $tags->saveOprions = Collection::SAVE_BEFOERE_DELETE_ITEMS;
+        $tags->saveOprions = Collection::SAVE_AFTER_DELETE_ITEMS;
 
         $ret = $tags->save();
         $this->assertEquals($ret, true);
@@ -2047,7 +2095,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(count($cust->tags2), 2);
         $this->assertEquals($cust->tags2[0]->id, 1);
         $this->assertEquals($cust->tags2[1]->id, 3);
-        $cust->tags->saveOprions = Collection::SAVE_BEFOERE_DELETE_ITEMS;
+        $cust->tags->saveOprions = Collection::SAVE_AFTER_DELETE_ITEMS;
         $cust->tags->delete();
         
         Customer::clear();
@@ -2063,7 +2111,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         Group::clear();
         $grp = Group::find(1);
         $this->assertEquals(count($grp->tags2), 3);
-        $grp->tags2->saveOprions = Collection::SAVE_BEFOERE_DELETE_ITEMS;
+        $grp->tags2->saveOprions = Collection::SAVE_AFTER_DELETE_ITEMS;
         $grp->tags2->delete();
         Group::clear();
         $grp = Group::find(1);
@@ -2081,16 +2129,14 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     public function testTransfer()
     {
          $cust = Customer::find(1);
-         var_dump($cust->address());
          $this->assertEquals($cust->address()->zip, '123-0');
          $cust->address()->zip = '390-0831';
          $cust->save();
          Customer::clear();
          $cust = Customer::find(1);
-         var_dump($cust->address());
          $this->assertEquals($cust->address()->zip, '390-0831');
     }
-    
+        
     private function showMemoryUsage()
     {
         //echo debug_backtrace()[1]['function'].' : '. ((int)(memory_get_usage()/(1024*1024))).PHP_EOL;

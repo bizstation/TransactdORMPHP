@@ -6,31 +6,59 @@ use Transactd\CollectionIterator;
 
 class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
 {
+    use \Transactd\Serializer;
+    
     private $array;
-    private $removes = array();
     private $rel = null;
     private $added = false;
     private $parent = null;
-    const SAVE_BEFOERE_DELETE_ITEMS = 2;
+
+    const SAVE_WITHOUT_DELETE = 0;
+     /**
+     * At the time of the preservation of the collection acquired in HasMany,
+     *  save after delete them from the database.
+     */
+    const SAVE_AFTER_DELETE_ITEMS = 2;
+    /**
+     * At the time of the preservation of the collection acquired in HasMany,
+     * save after delete objects by relation conditions, from the database.
+     */
     const DELETE_LOGICAL_ITEMS = 4;
+    /**
+     * Items are insert all, and use bulkInsert.
+     * Can not be combined with other options.
+     * @var int
+     */
+    const SAVE_ALL_BY_INSERT = 8;
+    
     public $saveOprions = 6; //self::SAVE_BEFOERE_DELETE_ITEMS | self::DELETE_LOGICAL_ITEMS;
     /**
-     * 
+     *
      * @param object[] $array
      * @param \Transactd\Relation $rel
      * @param object $parent
      */
-    public function __construct($array, $rel = null, $parent = null)
+    public function __construct($array = null, $rel = null, $parent = null)
     {
-        $this->array = $array;
+        $this->className = get_class() ;
+        $this->array = $array === null ? array() : $array;
         $this->rel = $rel;
         $this->parent = $parent;
         if ($parent === null || $rel === null) {
-            $this->saveOprions = self::SAVE_BEFOERE_DELETE_ITEMS;
+            $this->saveOprions = self::SAVE_AFTER_DELETE_ITEMS;
+        }
+    }
+    
+    private function checkObjectType($obj)
+    {
+        if ($this->array !== null && count($this->array) > 0) {
+            if (get_class($this->array[0]) !== get_class($obj)) {
+                throw new \InvalidArgumentException('Different types of objects were inserted.');
+            }
         }
     }
     /**
-     * 
+     *
      * @return CollectionIterator
      */
     public function getIterator()
@@ -38,7 +66,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return new CollectionIterator($this->array, 0, $this->count());
     }
     /**
-     * 
+     *
      * @param int $offset
      * @return bool
      */
@@ -47,7 +75,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return $offset >= 0 && $offset < $this->count();
     }
     /**
-     * 
+     *
      * @param int $offset
      * @return object
      */
@@ -56,16 +84,17 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return $this->array[$offset];
     }
     /**
-     * 
+     *
      * @param int $offset
      * @param object $value
      */
     public function offsetSet($offset, $value)
     {
+        $this->checkObjectType($value);
         $this->array[$offset] = $value;
     }
     /**
-     * 
+     *
      * @param int $offset
      */
     public function offsetUnset($offset)
@@ -73,7 +102,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         unset($this->array[$offset]);
     }
     /**
-     * 
+     *
      * @return int
      */
     public function count()
@@ -81,7 +110,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return count($this->array);
     }
     /**
-     * 
+     *
      * @param int $start
      * @param int $end
      * @return CollectionIterator
@@ -91,7 +120,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return new CollectionIterator($this->array, $start, $end);
     }
     /**
-     * 
+     *
      * @return object[]
      */
     public function getNativeArray()
@@ -99,7 +128,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return $this->array;
     }
     /**
-     * 
+     *
      * @param object[] $a
      */
     public function setNativeArray($a)
@@ -107,20 +136,22 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         $this->array = $a;
     }
     /**
-     * 
+     *
      * @param int $index
      * @param object $child
+     * @throws \InvalidArgumentException
      */
     public function insert($index, $child)
     {
+        $this->checkObjectType($child);
         if ($this->rel !== null) {
             $this->rel->copyParentValues($child);
         }
-        array_splice($this->array, $index, 0, $child);
+        array_splice($this->array, $index, 0, [$child]);
         $this->added = true;
     }
     /**
-     * 
+     *
      * @param \ArrayAccess $ar
      * @return bool
      */
@@ -129,11 +160,13 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return ($ar instanceof \ArrayAccess) || (is_array($ar));
     }
     /**
-     * 
+     *
      * @param object $childs
+     * @throws \InvalidArgumentException
      */
     public function add($childs)
     {
+        $this->checkObjectType($childs);
         if ($this->isArrayAccess($childs) === false) {
             $childs = array($childs);
         }
@@ -148,7 +181,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         $this->added = true;
     }
     /**
-     * 
+     * Remove specified index item. Remove only from the collection, no database access.
      * @param int $index
      * @throws \OutOfRangeException
      */
@@ -157,11 +190,10 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         if (is_int($index) === false) {
             throw new \OutOfRangeException();
         }
-        $this->removes[] = $this->array[$index];
-        unset($this->array[$index]);
+        array_splice($this->array, $index, 1);
     }
     /**
-     * 
+     *
      * @return int
      * @throws \BadMethodCallException
      */
@@ -175,77 +207,122 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         return $this->rel->deleteAll($this->parent);
     }
     /**
-     * 
+     * For models items only
+     * @param null|int $options
      * @return bool
      */
-    public function delete()
+    public function delete($options = null)
     {
-        if (($this->saveOprions & 
-                self::DELETE_LOGICAL_ITEMS) === self::DELETE_LOGICAL_ITEMS) {
-            return $this->logicalDelete($this->parent);
-        } else {
-            $subRel = ($this->rel !== null) ? 
-                    $this->rel->hasSubReleation() : false;
-            if ($subRel === false) {
-                foreach ($this->array as $obj) {
-                    if ($this->rel !== null && $this->added === true) {
-                        $this->rel->copyParentValues($obj);
-                    }
-                    if ($obj->delete() === false) {
-                        return false;
-                    }
-                }
+        if (count($this->array) !== 0) {
+            if (!($this->array[0] instanceof \Transactd\Model)) {
+                throw new \BadMethodCallException('Items are not Model.');
+            }
+            $options = $options === null ? $this->saveOprions : $options;
+            if (($options & self::DELETE_LOGICAL_ITEMS) === self::DELETE_LOGICAL_ITEMS) {
+                return $this->logicalDelete($this->parent);
             } else {
-                foreach ($this->array as $obj) {
-                    if ($this->rel->deleteIntermediateItem($this->parent, $obj) 
-                            === false) {
-                        return false;
+                $subRel = ($this->rel !== null) ? $this->rel->hasSubReleation() : false;
+                if ($subRel === false) {
+                    foreach ($this->array as $obj) {
+                        if ($this->rel !== null && $this->added === true) {
+                            $this->rel->copyParentValues($obj);
+                        }
+                        if ($obj->delete() === false) {
+                            return false;
+                        }
+                    }
+                } else {
+                    foreach ($this->array as $obj) {
+                        if ($this->rel->deleteIntermediateItem($this->parent, $obj)
+                                === false) {
+                            return false;
+                        }
                     }
                 }
             }
         }
         return true;
     }
-
-    private function doSaveItems()
+    
+    private function doSaveInternalItems($insert)
     {
-        $subRel = ($this->rel !== null) ? $this->rel->hasSubReleation() : false;
-        if ($subRel === false) {
+        $tb = $this->array[0]->queryExecuter()->getWritableTable();
+        try {
+            if ($insert === true) {
+                $tb->beginBulkInsert(64535);
+            }
             foreach ($this->array as $obj) {
                 if ($this->rel !== null && $this->added === true) {
                     $this->rel->copyParentValues($obj);
                 }
-                if ($obj->save() === false) {
+                if ($obj->save(null, $insert) === false) {
                     return false;
                 }
             }
-        } else {
+            if ($insert === true) {
+                $tb->commitBulkInsert();
+            }
+        } catch (Exception $e) {
+            if ($insert === true) {
+                $tb->abortBulkInsert();
+            }
+            throw $e;
+        }
+        return true;
+    }
+    private function doSaveIntermediateItem($insert)
+    {
+        $tb = $this->rel->getWritableTable();
+        try {
+            if ($insert === true) {
+                $tb->beginBulkInsert(64535);
+            }
             foreach ($this->array as $obj) {
                 if ($this->rel->saveIntermediateItem($this->parent, $obj) === false) {
                     return false;
                 }
             }
+            if ($insert === true) {
+                $tb->commitBulkInsert();
+            }
+        } catch (Exception $e) {
+            if ($insert === true) {
+                $tb->abortBulkInsert();
+            }
+            throw $e;
         }
         return true;
     }
+   
     /**
-     * 
+     * For models items only
+     * @param null|int $options
      * @return bool
      */
-    public function save()
+    public function save($options = null)
     {
-        if (($this->saveOprions & self::SAVE_BEFOERE_DELETE_ITEMS) === self::SAVE_BEFOERE_DELETE_ITEMS) {
-            if ($this->delete() === false) {
-                return false;
+        if (count($this->array) !== 0) {
+            if (!($this->array[0] instanceof \Transactd\Model)) {
+                throw new \BadMethodCallException('Items are not Model.');
             }
-        }
-        if ($this->doSaveItems() === false) {
-            return false;
+            $options = $options === null ? $this->saveOprions : $options;
+            if (($options & self::SAVE_AFTER_DELETE_ITEMS) === self::SAVE_AFTER_DELETE_ITEMS) {
+                if ($this->delete() === false) {
+                    return false;
+                }
+            }
+            $insert = ($options & self::SAVE_AFTER_DELETE_ITEMS) === self::SAVE_AFTER_DELETE_ITEMS ||
+                     ($options == self::SAVE_ALL_BY_INSERT);
+            $subRel = ($this->rel !== null) ? $this->rel->hasSubReleation() : false;
+            if ($subRel === false) {
+                return $this->doSaveInternalItems($insert);
+            }
+            return $this->doSaveIntermediateItem($insert);
         }
         return true;
     }
     /**
-     * 
+     *
      * @param \Transactd\Relation $rel
      */
     public function setRelation($rel)
@@ -253,7 +330,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         $this->rel = $rel;
     }
     /**
-     * 
+     *
      * @param string $fieldName
      */
     public function renumber($fieldName)
@@ -265,7 +342,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         }
     }
     /**
-     * 
+     *
      * @param int $index
      * @param int $destIndex
      */
@@ -273,7 +350,33 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
     {
         $obj = $this->array[$index];
         array_splice($this->array, $index, 1);
-        array_splice($this->array, $destIndex, 0, $obj);
+        array_splice($this->array, $destIndex, 0, [$obj]);
     }
-   
+    
+    /**
+     * Serializes to JSON string.
+     * Orverride trait Serializer
+     *
+     * @param object $obj
+     * @return string
+     */
+    private static function serialize($obj)
+    {
+        $s = '{';
+        $s .= '"className":'.json_encode($obj->className).', "array":{';
+        foreach ($obj->array as $key => $value) {
+            $s .= '"'.$key.'":';
+            if (is_object($value) === true) {
+                if ($value instanceof Collection) {
+                    $s .= Collection::serialize($value);
+                } else {
+                    $s .= Model::serialize($value);
+                }
+            } else {
+                $s .= json_encode($value);
+            }
+            $s .= ',';
+        }
+        return substr($s, 0, -1).'}}';
+    }
 }

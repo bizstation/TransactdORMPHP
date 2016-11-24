@@ -7,18 +7,19 @@ require_once(__DIR__ .'/Require.php');
 use BizStation\Transactd\Transactd;
 use BizStation\Transactd\PooledDbManager;
 use BizStation\Transactd\ConnectParams;
+use \Transactd\Model;
 
 /**
- * @method \BizStation\Transactd\Database master() 
- * @method \BizStation\Transactd\Database slave() 
+ * @method \BizStation\Transactd\Database master()
+ * @method \BizStation\Transactd\Database slave()
  * @method QueryExecuter queryExecuter(string $tableName, string $className = 'stdClass')
  * @method CachedQueryExecuter cachedQueryExecuter(string $tableName, string $className = 'stdClass')
  * @method \BizStation\Transactd\Table table(string $tableName)
  * @method void beginTrn(int $bias = null)
- * @method void endTrn() 
+ * @method void endTrn()
  * @method void abortTrn()
  * @method void beginTransaction(int $bias = null)
- * @method void commit() 
+ * @method void commit()
  * @method void rollBack()
  * @method void beginSnapshot(int $bias = Transactd::CONSISTENT_READ)
  * @method void endSnapshot()
@@ -51,6 +52,19 @@ class DatabaseManager
             $this->uris = $uri;
             $this->pds = new PooledDbManager();
             $this->pds->c_use($uri);
+        }
+    }
+    
+    protected function _reset()
+    {
+        Model::clearTableCache();
+        self::$dbmArray = array();
+        if ($this->pds !== null) {
+            $this->pds->unUse();
+        }
+        if ($this->pdm !== null) {
+            $this->pdm->unUse();
+            $this->pdm->reset(3);
         }
     }
 
@@ -142,7 +156,7 @@ class DatabaseManager
         throw new \BadMethodCallException($name);
     }
     /**
-     * 
+     *
      * @param string $urim Uri for master
      * @param string $uris Uri for slave
      * @param string $name Connection name
@@ -161,7 +175,7 @@ class DatabaseManager
         }
     }
     /**
-     * 
+     *
      * @param string $name Connection name
      * @return self
      * @throws IOException
@@ -174,9 +188,9 @@ class DatabaseManager
         return self::$dbmArray[$name];
     }
     /**
-     * Implemets of __callStatic. 
+     * Implemets of __callStatic.
      * When the name is object method , redirected to the default connection object.
-     * 
+     *
      * @param string $name
      * @param array $arguments
      * @return mixed
@@ -193,4 +207,3 @@ class DatabaseManager
         throw new \BadMethodCallException($name);
     }
 }
-

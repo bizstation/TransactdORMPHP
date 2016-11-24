@@ -3,6 +3,7 @@
 namespace Transactd;
 
 use BizStation\Transactd\Query;
+
 /**
  * This class is used only in QueryExecuter. The user does not have to be used.
  */
@@ -44,7 +45,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @return BizStation\Transactd\Query
      */
     public function query()
@@ -58,7 +59,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @return int
      */
     public function getSkip()
@@ -88,7 +89,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param string|mixed $operator  Operator or a value.
      * @param mixed $value (optional) a value
@@ -112,7 +113,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param string|mixed $operator  Operator or a value.
      * @param mixed $value (optional) a value
@@ -134,7 +135,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param string|mixed $operator  Operator or a value.
      * @param mixed $value (optional) a value
@@ -161,7 +162,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param string|mixed $operator  Operator or a value.
      * @param mixed $value (optional) a value
@@ -187,7 +188,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @return void
      */
@@ -202,7 +203,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @return void
      */
@@ -215,7 +216,7 @@ class QueryAdapter
     }
 
     /**
-     * 
+     *
      * @param string $name A field name.
      * @return void
      */
@@ -230,7 +231,7 @@ class QueryAdapter
     }
 
     /**
-     * 
+     *
      * @param string $name A field name.
      * @return void
      */
@@ -243,9 +244,9 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param BizStation\Transactd\Table $tb
-     * @param mixed $values Key values
+     * @param array $values Key values. A $values is always a one-dimensional array.
      * @param int $segments The segment count of values.
      */
     public function whereInKey($tb, $values, $segments = null)
@@ -265,9 +266,9 @@ class QueryAdapter
         }
     }
     /**
-     * 
+     *
      * @param string $name A field name.
-     * @param mixed $values Key values.
+     * @param array $values Key values. A $values is always a one-dimensional array.
      */
     public function whereIn($name, $values)
     {
@@ -285,7 +286,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param mixed $values Key values.
      */
@@ -305,7 +306,7 @@ class QueryAdapter
     }
 
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param mixed[2] $valuePair A pair of first value and end value.
      */
@@ -318,21 +319,21 @@ class QueryAdapter
         $this->whereFlag = true;
     }
     /**
-     * 
+     *
      * @param string $name A field name.
      * @param mixed[2] $valuePair A pair of first value and end value.
      */
      public function whereNotBetween($name, $valuePair)
-    {
-        if ($this->whereFlag === true) {
-            $this->throwUseFirstException('whereNotBetween');
-        }
-        $this->q->where($name, '<', $valuePair[0])->or_($name, '>', $valuePair[1]);
-        $this->whereFlag = true;
-    }
+     {
+         if ($this->whereFlag === true) {
+             $this->throwUseFirstException('whereNotBetween');
+         }
+         $this->q->where($name, '<', $valuePair[0])->or_($name, '>', $valuePair[1]);
+         $this->whereFlag = true;
+     }
 
     /**
-     * 
+     *
      * @param string $name1 A field name.
      * @param type $name2 (optional)  A field name.
      * @param type $name3 (optional)  A field name.
@@ -349,7 +350,7 @@ class QueryAdapter
     }
 
     /**
-     * 
+     *
      * @param string $name A field name.
      */
     public function addSelect($name)
@@ -357,7 +358,7 @@ class QueryAdapter
         $this->q->select($name);
     }
     /**
-     * 
+     *
      * @param int $n
      */
     public function reject($n)
@@ -366,7 +367,7 @@ class QueryAdapter
     }
     
     /**
-     * 
+     *
      * @param int $n
      */
     public function skip($n)
@@ -375,7 +376,7 @@ class QueryAdapter
     }
 
     /**
-     * 
+     *
      * @param int $n
      */
     public function take($n)

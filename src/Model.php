@@ -12,7 +12,7 @@ $pluralDictionary = null;
 /**
  * @ignore
  */
-function getPluralDictionary()
+function get_plural_dictionary()
 {
     return array('child' => 'children',
                             'person' => 'people',
@@ -31,14 +31,14 @@ function getPluralDictionary()
 /**
  * @ignore
  */
-function getPlural($tableName)
+function get_plural($tableName)
 {
     global $pluralDictionary;
     if (function_exists('str_plural')) {
         return str_plural($tableName);
     }
     if ($pluralDictionary === null) {
-        $pluralDictionary = getPluralDictionary();
+        $pluralDictionary = get_plural_dictionary();
     }
     $s = mb_substr($tableName, -1);
     if ($s === 's' || $s === 'x' || $s === 'z') {
@@ -66,7 +66,7 @@ function getPlural($tableName)
 /**
  * @ignore
  */
-function removeNamespace($className)
+function remove_namespace($className)
 {
     if (mb_strrchr($className, '\\') !== false) {
         return mb_substr(mb_strrchr($className, '\\'), 1);
@@ -76,14 +76,10 @@ function removeNamespace($className)
 
 class Model
 {
+    use Serializer;
+    
     private static $tables = array();
     private static $rerations = array();
-    /**
-     *
-     * @var array|null To public for test. Do not chenge this variable.
-     */
-    public static $saveHistory = null;
-
     /**
      *
      * @var bool  Just before the reading operation, it indicates whether it was returned from the cache.
@@ -92,56 +88,23 @@ class Model
     
     /**
      *
-     * @var bool  Just prior to the save operation, it indicates whether it found the re-entry.
-     */
-    public static $detectRecursiveSave = false;
-    
-    /**
-     *
      * @var type A class name for serizlization.
      */
-    public $className;
-    
-    /**
-     *
-     * @var int save option 
-     * <ul> 
-     * <li>SAVE_RELATIONS : Also saves relational object(s).</li>
-     * <li>SAVE_BEFOERE_DELETE_ITEMS : At the time of the preservation of the 
-     *    collection acquired in HasMany, save it 
-     *    previously deleted them from the database.</li>
-     * <li>DELETE_LOGICAL_ITEMS : At the time of the preservation of the 
-     *    collection acquired in HasMany, save it 
-     *    previously re-read objects and deleted from the database.</li>
-     * </ul>
-     */
-    public $saveOprions = self::SAVE_RELATIONS;
+    //protected $className;
 
     /**
      * Also saves relational object(s).
      */
-    const SAVE_RELATIONS = 1;
-    /**
-     * At the time of the preservation of the 
-     * collection acquired in HasMany, save it 
-     * previously deleted them from the database.
-     */
-    const SAVE_BEFOERE_DELETE_ITEMS = 2;
-    /**
-     * At the time of the preservation of the 
-     * collection acquired in HasMany, save it 
-     * previously re-read objects and deleted from the database.
-     */
-    const DELETE_LOGICAL_ITEMS = 4;
-    
+    const SAVE_WITH_RELATIONS = 1;
     
     /**
-     * Constructer. 
+     * Constructer.
      * @param array $params (optional) Properties hash. ['id' => 0]
      */
     public function __construct(array $params = null)
     {
         $this->className = get_called_class();
+        
         if ($params !== null) {
             $params = $this->filterCreateAttribute($params);
             foreach ($params as $key => $value) {
@@ -155,8 +118,8 @@ class Model
         if (property_exists($className, 'table')) {
             return $className::$table;
         }
-        $tableName = mb_strtolower(removeNamespace($className));
-        return getPlural($tableName);
+        $tableName = mb_strtolower(remove_namespace($className));
+        return get_plural($tableName);
     }
 
     private static function getConnectionName($className)
@@ -186,9 +149,9 @@ class Model
     
     /**
      * Get the QueryExecuter of this model.
-     * 
+     *
      * @param string $className (optional)
-     * @return \Transactd\CachedQueryExecuter
+     * @return \Transactd\QueryExecuter
      */
     public static function queryExecuter($className = null)
     {
@@ -198,7 +161,7 @@ class Model
         }
 
         if (array_key_exists($className, self::$tables) === true) {
-            return self::$tables[$className];
+            return self::$tables[$className]->reset();
         } else {
             $tableName = self::getTableName($className);
             $connectionName = self::getConnectionName($className);
@@ -237,7 +200,7 @@ class Model
     
     /**
      * Filtering the attributes for create model by the 'fillable' or 'guarded' property.
-     * 
+     *
      * @param array $attributes
      * @return array
      * @throws \LogicException
@@ -272,7 +235,7 @@ class Model
     /**
      * Implements of __get magic method.
      * Get the relation object by method name. And execute the releation object. And set result to the property of the name.
-     * 
+     *
      * @param string $name
      * @return mixed
      * @throws \Exception
@@ -295,21 +258,21 @@ class Model
 
     /**
      * Get the primary key field name(s) from $fieldNames. If $fieldNames is null return 'id'.
-     * 
+     *
      * @param string|string[]|null $fieldNames
      * @return string|string[]
      */
     public function getPrimaryKeyFieldName($fieldNames)
     {
         if ($fieldNames === null) {
-            $fieldNames = (property_exists($this, 'primaryKey') === true) ? $this->primaryKey : 'id';
+            return $this->queryExecuter()->primaryKeyFieldNames();
         }
         return $fieldNames;
     }
 
     private function getRelationDestKeyNum($className, $keyFields, $ignoreSegmentCount = false)
     {
-        return $className::queryExecuter($className)->getIndexByFieldNames($keyFields, $ignoreSegmentCount);
+        return $className::queryExecuter($className)->getIndexByFieldNames($keyFields, $ignoreSegmentCount, $ignoreSegmentCount);
     }
 
     private function getCachedRelation($key)
@@ -322,9 +285,17 @@ class Model
         return null;
     }
     
+    private function getIntermediateClass($self, $name)
+    {
+        if (mb_strrchr($self, '\\') !== false) {
+            return mb_substr(mb_strrchr($self, '\\', false), -1).ucfirst($name);
+        }
+        return ucfirst($name);
+    }
+    
     /**
      * Get a relationship object of polymorphic many-to-many.
-     * 
+     *
      * @param string $className A class name of relationship.
      * @param string $name A base name of intermediate.
      * @param string $IntermediateClass (optional) A class name of intermediate.
@@ -342,27 +313,29 @@ class Model
         }
 
         // first relation
-        if ($IntermediateClass === null) {
-            $IntermediateClass = ucfirst($name);
-        }
-        $rel = $this->doMorphMany($funcName, $IntermediateClass, $name);
+        $IntermediateClass = ($IntermediateClass === null)
+                ? $this->getIntermediateClass($self, $name) : $IntermediateClass;
+
+        $rel = $this->doMorph($funcName, $IntermediateClass, $name, null, null, null, false, true);
         // second relation
-        $rel2 = $this->doBelongsTo(null, $className, null, $otherKey);
+        $rel2 = $this->doBelongsTo(null, $className, null, $otherKey, true);
         $rel->setSubRelation($rel2);
         return $rel;
     }
     
     /**
      * Get a relationship object of polymorphic opposite direction many-to-many.
-     * 
+     *
      * @param string $className The class name of relationship.
      * @param string $name Intermediate name. This name is used for field name of intermediate table. Ex: $name.'_id' and $name.'_type'
      * @param string $IntermediateClass (optional) Intermediate class name.
      * @param int|string|string[] $foreignKey (optional) A key of $IntermediateClass.
-     * @param int|string|string[] $otherKey (optional) A key of $className.
+     * @param string[] $keyValuePropertyNames (optional) Property name(s) of this or fixed value. \
+     *                 Fixed values are enclosed in []<br/>
+     *                 Ex:['[1]', 'id']
      * @return \Transactd\Relation
      */
-    protected function morphedByMany($className, $name, $IntermediateClass = null, $foreignKey = null, $otherKey = null)
+    protected function morphedByMany($className, $name, $IntermediateClass = null, $foreignKey = null, $keyValuePropertyNames = null, $otherKey = null)
     {    //Called by Tag::customers() morphedByMany('Customer', 'taggable');
         $funcName = debug_backtrace()[1]['function'];
         $self = get_class($this);
@@ -373,21 +346,25 @@ class Model
         }
 
         // first relation
-        if ($IntermediateClass === null) {
-            $IntermediateClass = ucfirst($name);
-        }
+        $IntermediateClass = ($IntermediateClass === null)
+                ? $this->getIntermediateClass($self, $name) : $IntermediateClass;
         if (!is_int($foreignKey)) {   // $foreignKey = ['tag_id', 'taggable_type']
             if ($foreignKey === null) {
-                $foreignKey = [removeNamespace(mb_strtolower($self).'_id'), $name.'_type'];
+                $foreignKey = [remove_namespace(mb_strtolower($self).'_id'), $name.'_type'];
             }
             $index = $this->getRelationDestKeyNum($IntermediateClass, $foreignKey, true);
+        } else {
+            $index = $foreignKey;
         }
-        $optimize = true;
-        $keyValuePropertyNames = $this->getPrimaryKeyFieldName(null);
+        $optimize = false;
+        if ($keyValuePropertyNames === null) {
+            $keyValuePropertyNames = $this->getPrimaryKeyFieldName(null);
+            array_splice($keyValuePropertyNames, 1, 0, ['['.$className.']']);
+        }
         $rel = new Relation($self, $keyValuePropertyNames, $funcName, $IntermediateClass, $index, $optimize, Relation::TYPE_MORPHEDBYMANY);
 
         // second relation
-        $rel2 = $this->doBelongsTo(null, $className, $name.'_id', $otherKey);
+        $rel2 = $this->doBelongsTo(null, $className, $name.'_id', $otherKey, true);
         $rel->setSubRelation($rel2);
         self::$rerations[$key] = $rel;
         $rel->setParent($this);
@@ -396,7 +373,7 @@ class Model
     
     /**
      * Get a relationship object of polymorphic opposite direction one-to-one or many.
-     * 
+     *
      * @param string $name (optional) Intermediate name. This name is used for field name of intermediate table. Ex: $name.'_id' and $name.'_type'
      * @param string $type (optional) The name of type field.
      * @param string $id (optional) The name of id field.
@@ -436,13 +413,12 @@ class Model
         return $rel;
     }
 
-    private function getMorphManyForeignKey($self, $className, $name, $type, $id, &$keyValuePropertyNames)
+    private function getMorphForeignKey($self, $className, $name, $type, $id, &$keyValuePropertyNames, $many)
     {
-        // keyValuePropertyNames ["[$className]" , $this->{$localKey}]
+        // keyValuePropertyNames ["[$self]" , $this->{$localKey}]
         if ($keyValuePropertyNames === null) {
-            $tmp = mb_strtolower(removeNamespace($self));
             $keyValuePropertyNames = $self::queryExecuter()->primaryKeyFieldNames();
-            array_splice($keyValuePropertyNames, 0, 0, "[$tmp]"); // insert first
+            array_splice($keyValuePropertyNames, 0, 0, "[$self]"); // insert first. Fixed value
         }
 
         //$foreignKey [$type,$id]
@@ -453,20 +429,18 @@ class Model
             $id = $name.'_id';
         }
 
-        $tmp = mb_strtolower(removeNamespace($self));
         try {
-            $foreignKey = $this->getRelationDestKeyNum($className, [$type, $id], true);
+            $foreignKey = $this->getRelationDestKeyNum($className, [$type, $id], $many);
         } catch (\UnexpectedValueException $e) {
-            $foreignKey = $this->getRelationDestKeyNum($className, [$id, $type], true);
-            if ($keyValuePropertyNames === null) {
-                $keyValuePropertyNames = $self::queryExecuter()->primaryKeyFieldNames();
-                array_push($keyValuePropertyNames, "[$tmp]"); // add last
+            $foreignKey = $this->getRelationDestKeyNum($className, [$id, $type], $many);
+            if (is_array($keyValuePropertyNames) === true) {
+                array_reverse($keyValuePropertyNames);
             }
         }
         return $foreignKey;
     }
 
-    private function doMorphMany($funcName, $className, $name, $type = null, $id = null, $keyValuePropertyNames = null, $optimize = true)
+    private function doMorph($funcName, $className, $name, $type, $id, $keyValuePropertyNames, $optimize, $many)
     {
         $self = get_class($this);
         if ($funcName !== null) {
@@ -476,9 +450,8 @@ class Model
                 return $rel;
             }
         }
-        //$keyValuePropertyNames = $localKey;
-        $foreignKey = $this->getMorphManyForeignKey($self, $className, $name, $type, $id, $keyValuePropertyNames);
-        $rel = new Relation($self, $keyValuePropertyNames, $funcName, $className, $foreignKey, $optimize, Relation::TYPE_MORPHMANY);
+        $foreignKey = $this->getMorphForeignKey($self, $className, $name, $type, $id, $keyValuePropertyNames, $many);
+        $rel = new Relation($self, $keyValuePropertyNames, $funcName, $className, $foreignKey, $optimize, $many === true ? Relation::TYPE_MORPHMANY : Relation::TYPE_MORPHONE);
         if ($funcName !== null) {
             self::$rerations[$key] = $rel;
         }
@@ -489,7 +462,7 @@ class Model
 
     /**
      * Get a relationship object of polymorphic one-to-many.
-     * 
+     *
      * @param string $className A class name of relationship.
      * @param string $name A base name of fieid of type and id.
      * @param string $type (optional) The name of type field.
@@ -497,31 +470,58 @@ class Model
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this or fixed value. \
      *                 Fixed values are enclosed in []<br/>
      *                 Ex:['[1]', 'id']
+     * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
+     *  <ul>
+     *   <li> true : sort-merge</li>
+     *   <li> false : nested loop</li>
+     *  </ul>
      * @return \Transactd\Relation
      */
-    protected function morphMany($className, $name, $type = null, $id = null, $keyValuePropertyNames = null )
+    protected function morphMany($className, $name, $type = null, $id = null, $keyValuePropertyNames = null,  $optimize = false)
     {
         $funcName = debug_backtrace()[1]['function'];
-        $optimize = true;
-        return $this->doMorphMany($funcName, $className, $name, $type, $id, $keyValuePropertyNames, $optimize);
+        return $this->doMorph($funcName, $className, $name, $type, $id, $keyValuePropertyNames, $optimize, true);
+    }
+    
+    /**
+     * Get a relationship object of polymorphic one-to-one.
+     *
+     * @param string $className A class name of relationship.
+     * @param string $name A base name of fieid of type and id.
+     * @param string $type (optional) The name of type field.
+     * @param string $id (optional) The name of id field.
+     * @param string[] $keyValuePropertyNames (optional) Property name(s) of this or fixed value. \
+     *                 Fixed values are enclosed in []<br/>
+     *                 Ex:['[1]', 'id']
+     * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
+     *  <ul>
+     *   <li> true : sort-merge</li>
+     *   <li> false : nested loop</li>
+     *  </ul>
+     * @return \Transactd\Relation
+     */
+    protected function morphOne($className, $name,  $type = null,  $id = null,  $keyValuePropertyNames = null,  $optimize = false)
+    {
+        $funcName = debug_backtrace()[1]['function'];
+        return $this->doMorph($funcName, $className, $name, $type, $id, $keyValuePropertyNames, $optimize, false);
     }
     /**
      @return A model of $className.
      */
     /**
      * Get a relationship object of one-to-one.
-     * 
+     *
      * @param string $className A class name of relationship.
-     * @param int|string|string[] $foreignKey (optional) A key of $IntermediateClass.
+     * @param int|string|string[] $foreignKey (optional) Key fields or index number of $className.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this.
      * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
-     *  <ul>               
+     *  <ul>
      *   <li> true : sort-merge</li>
      *   <li> false : nested loop</li>
      *  </ul>
      * @return \Transactd\Relation
      */
-    protected function hasOne($className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = true)
+    protected function hasOne($className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = false)
     {
         $funcName = debug_backtrace()[1]['function'];
         $self = get_class($this);
@@ -544,7 +544,7 @@ class Model
         return $rel;
     }
 
-    private function doBelongsTo($funcName, $className, $keyValuePropertyNames = null, $otherKey = null, $optimize = true)
+    private function doBelongsTo($funcName, $className, $keyValuePropertyNames, $otherKey, $optimize)
     {
         $self = get_class($this);
         if ($funcName !== null) {
@@ -555,10 +555,7 @@ class Model
             }
         }
         if (!is_int($otherKey)) {
-            if ($otherKey === null) {
-                $otherKey = 'id';
-            }
-            $otherKey = $this->getRelationDestKeyNum($className, $otherKey);
+            $otherKey = $this->getRelationDestKeyNum($className, $otherKey === null ? 'id' : $otherKey);
         }
         $keyValuePropertyNames = ($keyValuePropertyNames === null) ?
                                 mb_strtolower($className).'_id' : $keyValuePropertyNames;
@@ -571,24 +568,24 @@ class Model
     }
     /**
      * Get a relationship object of opposite direction one-to-one or many.
-     * 
+     *
      * @param string $className A class name of relationship.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this.
-     * @param int|string|string[] $otherKey (optional) A key of $className
+     * @param int|string|string[] $otherKey (optional) Key fields or index number of $className
      * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
-     *  <ul>               
+     *  <ul>
      *   <li> true : sort-merge</li>
      *   <li> false : nested loop</li>
      *  </ul>
      * @return \Transactd\Relation
      */
-    protected function belongsTo($className, $keyValuePropertyNames = null, $otherKey = null,  $optimize = true)
+    protected function belongsTo($className, $keyValuePropertyNames = null, $otherKey = 'id',  $optimize = true)
     {
         $funcName = debug_backtrace()[1]['function'];
         return $this->doBelongsTo($funcName, $className, $keyValuePropertyNames, $otherKey, $optimize);
     }
 
-    private function doHasMany($type, $funcName, $className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = true)
+    private function doHasMany($type, $funcName, $className, $foreignKey, $keyValuePropertyNames, $optimize)
     {
         $self = get_class($this);
         if ($funcName !== null) {
@@ -600,9 +597,9 @@ class Model
         }
         if (!is_int($foreignKey)) {
             if ($foreignKey === null) {
-                $foreignKey = removeNamespace(mb_strtolower($className).'_id');
+                $foreignKey = mb_strtolower(remove_namespace($self)).'_id';
             }
-            $index = $this->getRelationDestKeyNum($className, $foreignKey, true, true);
+            $index = $this->getRelationDestKeyNum($className, $foreignKey, true);
         }
 
         $keyValuePropertyNames = $this->getPrimaryKeyFieldName($keyValuePropertyNames);
@@ -616,18 +613,18 @@ class Model
   
     /**
      * Get a relationship object of one-to-many.
-     * 
+     *
      * @param string $className A class name of relationship.
-     * @param int|string|string[] $foreignKey (optional) A key of $className.
+     * @param int|string|string[] $foreignKey (optional) Key fields or index number of $className.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this.
      * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
-     *  <ul>               
+     *  <ul>
      *   <li> true : sort-merge</li>
      *   <li> false : nested loop</li>
      *  </ul>
      * @return \Transactd\Relation
      */
-    protected function hasMany($className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = true)
+    protected function hasMany($className, $foreignKey = null, $keyValuePropertyNames = null, $optimize = false)
     {
         $funcName = debug_backtrace()[1]['function'];
         return $this->doHasMany(Relation::TYPE_HAS_MANY, $funcName, $className, $foreignKey, $keyValuePropertyNames, $optimize);
@@ -635,10 +632,10 @@ class Model
 
     /**
      * Get a relationship object of many-to-many.
-     * 
+     *
      * @param string $className A class name of relationship.
      * @param string $IntermediateClass (optional) Intermediate class name.
-     * @param int|string|string[] $foreignKey (optional) A key of $className.
+     * @param int|string|string[] $foreignKey (optional) (optional) Key fields or index number of $IntermediateClass.
      * @param string[] (optional) $intermediatePropertyNames property name(s) of intermediate class.
      * @return \Transactd\Relation
      */
@@ -652,31 +649,36 @@ class Model
             return $relCache;
         }
 
+        // Namespace is same as $this.
         if ($IntermediateClass === null) {
-            $IntermediateClass = $self.'_'.removeNamespace($className);
+            $IntermediateClass = $self.remove_namespace($className);
+            if (class_exists($IntermediateClass) === false) {
+                $IntermediateClass = $className.remove_namespace($self);
+            }
         }
-        $rel = $this->doHasMany(Relation::TYPE_BELONGSTO_MANY, $funcName, $IntermediateClass, $foreignKey, null);
-        $rel2 = $this->doBelongsTo(null, $className, $intermediatePropertyNames);
+  
+        $rel = $this->doHasMany(Relation::TYPE_BELONGSTO_MANY, $funcName, $IntermediateClass, $foreignKey, null, false);
+        $rel2 = $this->doBelongsTo(null, $className, $intermediatePropertyNames, 'id', true);
         $rel->setSubRelation($rel2);
         return $rel;
     }
     
     /**
      * Get a relationship object.
-     * 
+     *
      * @param string $className A class name of relationship.
      * @param int $index Index number of $className table for search.
      * @param string[] $keyValuePropertyNames (optional) Property name(s) of this or fixed value. <br/>
      *                 Fixed values are enclosed in []<br/>
      *                 Ex:['[1]', 'id']
-     * @param bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
-     *  <ul>               
+     * @param null|bool $optimize (optional) Whether to use the sort-merge or nested loop at the time of batch processing<br/>
+     *  <ul>
      *   <li> true : sort-merge</li>
      *   <li> false : nested loop</li>
      *  </ul>
      * @return \Transactd\Relation
      */
-    public function relation($className, $index, $keyValuePropertyNames, $optimize = true)
+    public function relation($className, $index, $keyValuePropertyNames, $optimize = null)
     {
         $funcName = debug_backtrace()[1]['function'];
         $self = get_class($this);
@@ -691,27 +693,35 @@ class Model
             $segments = 1;
         }
         $type = Relation::TYPE_HAS_ONE;
-        $hasMany = $className::queryExecuter()->isSeekHasMany($index, $segments);
-        if ($hasMany === true) {
-            $type = Relation::TYPE_HAS_MANY;
-            if (is_array($keyValuePropertyNames) === true) {
-                foreach ($keyValuePropertyNames as $name) {
-                    if (strpos($name, '[') === 0) {
-                        $type = Relation::TYPE_MORPHMANY;
-                        break;
+        if ($className !== null) {
+            $hasMany = $className::queryExecuter()->isSeekHasMany($index, $segments);
+            if ($hasMany === true) {
+                $type = Relation::TYPE_HAS_MANY;
+                if (is_array($keyValuePropertyNames) === true) {
+                    foreach ($keyValuePropertyNames as $name) {
+                        if (strpos($name, '[') === 0) {
+                            $type = Relation::TYPE_MORPHMANY;
+                            break;
+                        }
+                    }
+                }
+            } elseif ($index === $className::queryExecuter()->primarykey()) {
+                if (is_array($keyValuePropertyNames) && $keyValuePropertyNames[0][0] === '[') {
+                    $type = Relation::TYPE_MORPHONE;
+                    $optimize = $optimize === null ? false: $optimize;
+                } else {
+                    $idx = $this->getRelationDestKeyNum($self, $keyValuePropertyNames, true);
+                    if ($idx !== $self::queryExecuter()->primarykey()) {
+                        $type = Relation::TYPE_BELONGSTO;
+                        $optimize = $optimize === null ? true: $optimize;
                     }
                 }
             }
-        } elseif ($className === null) {
+        } else {
             $type = Relation::TYPE_MORPHTO;
-        } elseif ($index === $className::queryExecuter()->primarykey()) {
-            $idx = $this->getRelationDestKeyNum($self, $keyValuePropertyNames, true, true);
-            if ($idx !== $self::queryExecuter()->primarykey()) {
-                $type = Relation::TYPE_BELONGSTO;
-            }
         }
         $rel = new Relation($self, $keyValuePropertyNames, $funcName, $className,
-                    $index, $optimize, $type);
+                    $index, $optimize === null ? false : $optimize, $type);
         self::$rerations[$key] = $rel;
         $rel->setParent($this);
         return $rel;
@@ -725,85 +735,13 @@ class Model
         self::queryExecuter()->reset();
     }
     
-    /**
-     * Get all objects.
-     * 
-     * @param bool $toArray (optional) false: Get by recordset.
-     * @return \Transactd\Model[]|\BizStation\Transactd\Recordset
-     */
-    public static function all($toArray = true)
-    {
-        return self::queryExecuter()->all($toArray);
-    }
     
-    /**
-     * Find a model by the primary key values.
-     * 
-     * @param mixed $keyValues The primary key values for find.
-     * @return model
-     */
-    public static function find($keyValues)
-    {
-        return self::queryExecuter()->indexToPrimaryKey()->find($keyValues);
-    }
-    
-    /**
-     * Find multiple models by the primary key values.
-     * 
-     * @param array $keyValuesArray A araay of the primary key values. Ex:[1, 2] or [[1,1],[1,2]] 
-     * @return \Transactd\Collection
-     */
-    public static function findMany($keyValuesArray)
-    {
-        return self::queryExecuter()->indexToPrimaryKey()->findMany($keyValuesArray);
-    }
-
-    /**
-     *  Find a model by the specfied key.
-     * 
-     * @param int  $index Index number for find.
-     * @param mixed $keyValues Key values for find.
-     * @return \Transactd\Model
-     */
-    public static function findWithIndex($index, $keyValues)
-    {
-        return self::queryExecuter()->index($index)->find($keyValues);
-    }
-    
-    /**
-     * 
-     * @return \Transactd\Model
-     */
-    public static function first()
-    {
-        return self::queryExecuter()->indexToPrimaryKey()->first();
-    }
-    /**
-     * 
-     * @param mixed $keyValues Key values for find.
-     * @return \Transactd\Model
-     * @throws ModelNotFoundException
-     */
-    public static function findOrFail($keyValues)
-    {
-        return self::queryExecuter()->indexToPrimaryKey()->find($keyValues, true);
-    }
-
-    /**
-     * 
-     * @return \Transactd\Model
-     * @throws ModelNotFoundException
-     */
-    public static function firstOrFail()
-    {
-        return self::queryExecuter()->indexToPrimaryKey()->first(true);
-    }
     /**
      * Implementation of __callStatic method.
-     * 
+     *
      * Fiest, if $name is present in the 'Transactd\CachedQueryExecuter' then redirect to a CachedQueryExecuter.<br/>
      * Second, If supper class has a 'scope' + $name method then invoke it.
-     * 
+     *
      * @param string $name
      * @param mixed[] $arguments
      * @return mixed
@@ -830,41 +768,7 @@ class Model
         throw new \BadMethodCallException($name);
     }
     
-    private function saveHistoryInit()
-    {
-        if (self::$saveHistory === null) {
-            self::$saveHistory = array();
-            return true;
-        }
-        return false;
-    }
-
-    private function duplicateSafeExecute($func)
-    {
-        if (($this->saveOprions & self::SAVE_RELATIONS) !== self::SAVE_RELATIONS) {
-            return $this->{$func}();
-        }
-        $top = $this->saveHistoryInit();
-        if (array_search($this, self::$saveHistory, true) !== false) {
-            self::$detectRecursiveSave = true;
-            return true;
-        }
-        try {
-            array_push(self::$saveHistory, $this);
-            $ret = $this->{$func}();
-        } catch (\Exception $e) {
-            if ($top === true) {
-                self::$saveHistory = null;
-            }
-            throw $e;
-        }
-        if ($top === true) {
-            self::$saveHistory = null;
-        }
-        return $ret;
-    }
-    
-    private function doSave()
+    private function doSave($options, $forceInsert)
     {
         $q = self::queryExecuter();
         if (property_exists($this, 'timestamps')) {
@@ -872,11 +776,11 @@ class Model
         }
         if ($q->save($this) === true) {
             // save hasMany childs
-            if (($this->saveOprions & self::SAVE_RELATIONS) === self::SAVE_RELATIONS) {
+            if (($options & self::SAVE_WITH_RELATIONS) === self::SAVE_WITH_RELATIONS) {
                 foreach ($this as $key => $obj) {
                     if (method_exists($this, $key) === true &&
                             is_object($obj) === true && method_exists($obj, 'save') === true) {
-                        if ($obj->save() === false) {
+                        if ($obj->save($forceInsert) === false) {
                             return false;
                         }
                     }
@@ -887,10 +791,10 @@ class Model
         return false;
     }
 
-    private function doDelete()
+    private function doDelete($options)
     {
-        if (self::queryExecuter()->deleteByObj($this) === true) {
-            if (($this->saveOprions & self::SAVE_RELATIONS) === self::SAVE_RELATIONS) {
+        if (self::queryExecuter()->deleteObject($this) === true) {
+            if (($options & self::SAVE_WITH_RELATIONS) === self::SAVE_WITH_RELATIONS) {
                 foreach ($this as $key => $obj) {
                     if (method_exists($this, $key) === true &&
                             is_object($obj) === true && method_exists($obj, 'delete') === true) {
@@ -907,35 +811,29 @@ class Model
     
     /**
      * To save this object to the database.
-     * 
-     * @param int $options @see self::$saveOprions 
+     * @param bool $forceInsert
+     * @param int $options
      * @return bool
      */
-    public function save($options = null)
+    public function save($options = null, $forceInsert = false)
     {
-        if ($options !== null) {
-            $this->saveOprions = $options;
-        }
-        return $this->duplicateSafeExecute('doSave');
+        return $this->doSave($options !== null ? $options : Model::SAVE_WITH_RELATIONS, $forceInsert);
     }
     
     /**
      * To delete this object from the database.
-     * 
-     * @param int $options @see self::$saveOprions 
+     *
+     * @param int $options
      * @return bool
      */
     public function delete($options = null)
     {
-        if ($options !== null) {
-            $this->saveOprions = $options;
-        }
-        return $this->duplicateSafeExecute('doDelete');
+        return $this->doDelete($options !== null ? $options : Model::SAVE_WITH_RELATIONS);
     }
     
     /**
-     * Re-read from database and re-cache. 
-     * 
+     * Re-read from database and re-cache.
+     *
      * @return bool
      */
     public function refresh()
@@ -945,9 +843,9 @@ class Model
     
     /**
      * Relation models to batch acquisition.
-     * 
-     * @param \Transactd\Model[] $array Model(s) 
-     * @param string|string[] $functionNames Relation function name(s) of Model(s) 
+     *
+     * @param \Transactd\Model[] $array Model(s)
+     * @param string|string[] $functionNames Relation function name(s) of Model(s)
      */
     public static function resolveRelations($array, $functionNames)
     {
@@ -960,57 +858,5 @@ class Model
                 $array[0]->{$functionName}()->resolveRelations($array);
             }
         }
-    }
-
-    /** 
-     * Return a JSON text of this model
-     * 
-     * @return string
-     */
-    public function toString()
-    {
-        return Serializer::serialize($this);
-    }
-    
-    /** 
-     * Return a JSON text of this model
-     * 
-     * @return string
-     */
-    public function toJson()
-    {
-        return $this->toString();
-    }
-    /**
-     * Copy contents of the original model.
-     * 
-     * @param \Transactd\Model $src model of original
-     * @return $this
-     * @throws \InvalidArgumentException
-     */
-    public function assign($src)
-    {
-        if (is_object($src)) {
-            foreach ($src as $key => $v) {
-                $this->{$key} = Serializer::chengeObjectType($v);
-            }
-            return $this;
-        }
-        throw new \InvalidArgumentException('$src is not object.');
-    }
-    
-    /**
-     * Create a new instance or clone model
-     *  
-     * @param \Transactd\Model $src (optional) For clone
-     * @return \Transactd\Model
-     */
-    public static function createInstance($src = null)
-    {
-        $obj = new static();
-        if ($src !== null) {
-            $obj->assign($src);
-        }
-        return $obj;
     }
 }
