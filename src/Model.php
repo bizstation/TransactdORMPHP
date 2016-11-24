@@ -505,9 +505,7 @@ class Model
         $funcName = debug_backtrace()[1]['function'];
         return $this->doMorph($funcName, $className, $name, $type, $id, $keyValuePropertyNames, $optimize, false);
     }
-    /**
-     @return A model of $className.
-     */
+
     /**
      * Get a relationship object of one-to-one.
      *
