@@ -11,15 +11,9 @@ if (file_exists(__DIR__ . "/vendor/autoload.php")) {
 use BizStation\Transactd\Transactd;
 use BizStation\Transactd\Database;
 use BizStation\Transactd\Tabledef;
-use BizStation\Transactd\GroupQuery;
-use BizStation\Transactd\Count;
-use BizStation\Transactd\Query;
 use Transactd\Model;
 use Transactd\IOException;
 use Transactd\Collection;
-
-
-
 
 function getHost()
 {
@@ -38,19 +32,17 @@ define("USERNAME", getenv('TRANSACTD_PHPUNIT_USER'));
 define("USERPART", strlen(USERNAME) == 0 ? '' : USERNAME . '@');
 define("PASSWORD", getenv('TRANSACTD_PHPUNIT_PASS'));
 define("PASSPART", strlen(PASSWORD) == 0 ? '' : '&pwd=' . PASSWORD);
-define("DBNAME", "ormtest1");
+define("DBNAME", "ormtest");
 define("PROTOCOL", "tdap://");
 define("BDFNAME", "?dbfile=test.bdf");
 define("URI", PROTOCOL . USERPART . HOSTNAME . DBNAME . BDFNAME . PASSPART);
-define("URIQ", PROTOCOL . USERPART . HOSTNAME . "querytest" . BDFNAME . PASSPART);
+
 class_alias('Transactd\DatabaseManager', 'DB');
 
 function init()
 {
-   
     try {
         DB::connect(URI, URI);
-        //DB::connect(URIQ, null, 'q2');
     } catch (\Exception $e) {
         echo PHP_EOL.$e.PHP_EOL;
     }
@@ -298,8 +290,6 @@ function createTestData()
     }
     return false;
 }
-
-
 
 if (createTestData() === false) {
     return 1;

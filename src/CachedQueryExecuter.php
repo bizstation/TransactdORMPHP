@@ -3,6 +3,7 @@
 namespace Transactd;
 
 use Transactd\QueryExecuter;
+use Transactd\IOException;
 
 /**
  *  QueryExecuter with cache.
@@ -30,12 +31,13 @@ class CachedQueryExecuter extends QueryExecuter
     }
 
     /**
-     *
+     * Update the cache.
+     * 
      * @param object $obj
      * @param bool $clear
      * @return object
      */
-    private function updateCache($obj, $clear = false)
+    public function updateCache($obj, $clear = false)
     {
         if ($obj === null) {
             return $obj;
@@ -132,7 +134,7 @@ class CachedQueryExecuter extends QueryExecuter
     /**
      * Find a first record by the current conditions.
      *
-     * @param boolean $throwException Whether throw an exception that could not be found.
+     * @param bool $throwException Whether throw an exception that could not be found.
      * @return object
      */
     public function first($throwException = false)
@@ -153,7 +155,7 @@ class CachedQueryExecuter extends QueryExecuter
      * @param array $attributes
      * @return object
      */
-    public function firstOrCreate($attributes)
+    public function firstOrCreate(array $attributes)
     {
         return $this->updateCache(parent::firstOrCreate($attributes));
     }
@@ -162,7 +164,7 @@ class CachedQueryExecuter extends QueryExecuter
      * @param array $attributes
      * @return object
      */
-    public function firstOrNew($attributes)
+    public function firstOrNew(array $attributes)
     {
         return $this->updateCache(parent::firstOrNew($attributes));
     }
@@ -189,7 +191,7 @@ class CachedQueryExecuter extends QueryExecuter
      * @param bool $nosave
      * @return object
      */
-    public function create($attributes, $nosave = false)
+    public function create(array $attributes, $nosave = false)
     {
         return $this->updateCache(parent::create($attributes, $nosave));
     }
@@ -210,8 +212,8 @@ class CachedQueryExecuter extends QueryExecuter
     /**
      *
      * @param object $obj
-     * @param boolean $forceInsert
-     * @return boolean
+     * @param bool $forceInsert
+     * @return bool
      * @throws IOException
      */
     public function save($obj, $forceInsert = false)
@@ -228,7 +230,7 @@ class CachedQueryExecuter extends QueryExecuter
      * @param array $attributes
      * @return int|false Return count of array or false.
      */
-    public function update($attributes)
+    public function update(array $attributes)
     {
         $array = parent::doUpdate($attributes);
         if ($array === false) {

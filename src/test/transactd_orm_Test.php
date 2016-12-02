@@ -73,10 +73,9 @@ class Customer extends Model
         parent::__construct();
         $this->address = new Address();
     }
-    public static function creating($user)
+    public static function created($user)
     {
-        echo 'Customer creating called user->id = '.$user->id.PHP_EOL;
-        return true;
+        echo 'Customer created called user->id = '.$user->id.PHP_EOL;
     }
     
     public function scopeParent($q, $parent)
@@ -1679,15 +1678,19 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         Customer::updateConflictCheck(false);
         try {
             $this->assertEquals($customer->save(), true);
+            DB::abortTrn();
         } catch (IOException $e) {
             $this->assertEquals(1, 0);
+            DB::abortTrn();
         }
-        DB::abortTrn();
+        
         $this->showMemoryUsage();
-    }
+
+        }
 
     public function testJson()
     {
+        Customer::clear();
         $c2 = Customer::find(2);
         // tojson
         $c2->followings;

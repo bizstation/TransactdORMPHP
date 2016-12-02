@@ -1,8 +1,9 @@
 <?php
-
 namespace Transactd;
 
 use Transactd\CollectionIterator;
+use Transactd\Model;
+use Transactd\Relation;
 
 class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
 {
@@ -34,11 +35,11 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
     public $saveOprions = 6; //self::SAVE_BEFOERE_DELETE_ITEMS | self::DELETE_LOGICAL_ITEMS;
     /**
      *
-     * @param object[] $array
-     * @param \Transactd\Relation $rel
+     * @param null|object[] $array
+     * @param null|\Transactd\Relation $rel
      * @param object $parent
      */
-    public function __construct($array = null, $rel = null, $parent = null)
+    public function __construct(array $array = null, Relation $rel = null, $parent = null)
     {
         $this->className = get_class() ;
         $this->array = $array === null ? array() : $array;
@@ -47,6 +48,14 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         if ($parent === null || $rel === null) {
             $this->saveOprions = self::SAVE_AFTER_DELETE_ITEMS;
         }
+    }
+    
+    /**
+     * Remove all items.
+     */
+    public function clear()
+    {
+        $this->array = array();   
     }
     
     private function checkObjectType($obj)
@@ -131,7 +140,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
      *
      * @param object[] $a
      */
-    public function setNativeArray($a)
+    public function setNativeArray(array $a)
     {
         $this->array = $a;
     }
@@ -210,8 +219,16 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
      * For models items only
      * @param null|int $options
      * @return bool
+     * @throw IOException
      */
     public function delete($options = null)
+    {
+        $ret = $this->doDelete($options);
+        $this->clear();
+        return $ret;
+    }
+    
+    private function doDelete($options = null)
     {
         if (count($this->array) !== 0) {
             if (!($this->array[0] instanceof \Transactd\Model)) {
@@ -270,6 +287,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
         }
         return true;
     }
+    
     private function doSaveIntermediateItem($insert)
     {
         $tb = $this->rel->getWritableTable();
@@ -298,6 +316,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
      * For models items only
      * @param null|int $options
      * @return bool
+     * @throw BadMethodCallException, IOException
      */
     public function save($options = null)
     {
@@ -307,7 +326,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
             }
             $options = $options === null ? $this->saveOprions : $options;
             if (($options & self::SAVE_AFTER_DELETE_ITEMS) === self::SAVE_AFTER_DELETE_ITEMS) {
-                if ($this->delete() === false) {
+                if ($this->doDelete() === false) {
                     return false;
                 }
             }
@@ -325,7 +344,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
      *
      * @param \Transactd\Relation $rel
      */
-    public function setRelation($rel)
+    public function setRelation(Relation $rel)
     {
         $this->rel = $rel;
     }
@@ -378,5 +397,14 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
             $s .= ',';
         }
         return substr($s, 0, -1).'}}';
+    }
+    
+    /**
+     * 
+     * @param string|string[] $funcNames
+     */
+    public function loadRelations($funcNames)
+    {
+        Model::resolveRelations($this->array, $funcNames);
     }
 }

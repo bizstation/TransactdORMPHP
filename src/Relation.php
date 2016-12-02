@@ -458,7 +458,7 @@ class Relation
         if (($this->type & self::TYPE_HAS_MANY) !== self::TYPE_HAS_MANY) {
             return 0;
         }
-        $rs = $this->getMany($values, false);
+        $rs = $this->getMany($values, false/* Recordset */);
         foreach ($rs as $obj) {
             if ($obj !== null) {
                 $obj->delete();

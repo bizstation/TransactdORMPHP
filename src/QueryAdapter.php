@@ -383,4 +383,12 @@ class QueryAdapter
     {
         $this->take = $n;
     }
+    /**
+     * 
+     * @param int $v Nstable::findForword| Nstable::findBackForword
+     */
+    public function direction($v)
+    {
+        $this->q->direction($v);
+    }
 }

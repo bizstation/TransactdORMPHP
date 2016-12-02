@@ -4,6 +4,9 @@ namespace Transactd;
 
 require_once(__DIR__ .'/Require.php');
 
+use BizStation\Transactd\Transactd;
+use Transactd\QueryExecuter;
+
 /**
  * @ignore
  */
@@ -80,18 +83,12 @@ class Model
     
     private static $tables = array();
     private static $rerations = array();
+    
     /**
-     *
      * @var bool  Just before the reading operation, it indicates whether it was returned from the cache.
      */
     public static $resolvByCache = false;
     
-    /**
-     *
-     * @var type A class name for serizlization.
-     */
-    //protected $className;
-
     /**
      * Also saves relational object(s).
      */
@@ -232,6 +229,7 @@ class Model
         }
         return $attributes;
     }
+    
     /**
      * Implements of __get magic method.
      * Get the relation object by method name. And execute the releation object. And set result to the property of the name.
@@ -597,11 +595,11 @@ class Model
             if ($foreignKey === null) {
                 $foreignKey = mb_strtolower(remove_namespace($self)).'_id';
             }
-            $index = $this->getRelationDestKeyNum($className, $foreignKey, true);
+            $foreignKey = $this->getRelationDestKeyNum($className, $foreignKey, true);
         }
 
         $keyValuePropertyNames = $this->getPrimaryKeyFieldName($keyValuePropertyNames);
-        $rel = new Relation($self, $keyValuePropertyNames, $funcName, $className, $index, $optimize, $type);
+        $rel = new Relation($self, $keyValuePropertyNames, $funcName, $className, $foreignKey, $optimize, $type);
         if ($funcName !== null) {
             self::$rerations[$key] = $rel;
         }
@@ -812,6 +810,7 @@ class Model
      * @param bool $forceInsert
      * @param int $options
      * @return bool
+     * @throw IOException
      */
     public function save($options = null, $forceInsert = false)
     {
@@ -823,6 +822,7 @@ class Model
      *
      * @param int $options
      * @return bool
+     * @throw IOException
      */
     public function delete($options = null)
     {
@@ -837,6 +837,38 @@ class Model
     public function refresh()
     {
         return self::queryExecuter()->refresh($this);
+    }
+   
+    /**
+     * Update this cache.
+     * 
+     * @param type $clear
+     */
+    public function updateCache($clear = false)
+    {
+        self::queryExecuter()->updateCache($this, $clear);
+    }
+    
+    /**
+     * Get a server cursor. The keyValue uses this object properties.
+     * Finally call reset() to restore index and keyValue.
+     * @param int $index
+     * @param int $op
+     * @param int $lockBias
+     * @return \Transactd\TableIterator
+     * @throw IOException
+     */   
+    public function serverCursor($index = null, $op = QueryExecuter::SEEK_EQUAL, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
+    {
+        $qe = self::queryExecuter();
+        if ($index === null) {
+            $qe->index($qe->primaryKey);
+        } else {
+            $qe->index($index);
+        }
+        $tb = $qe->getWritableTable();
+        $tb->getRecord()->setValueByObject($this);
+        return QueryExecuter::getIterator($tb, $op, $forword, $lockBias);
     }
     
     /**

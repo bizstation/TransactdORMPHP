@@ -8,6 +8,7 @@ use BizStation\Transactd\Transactd;
 use BizStation\Transactd\PooledDbManager;
 use BizStation\Transactd\ConnectParams;
 use \Transactd\Model;
+use Transactd\IOException;
 
 /**
  * @method \BizStation\Transactd\Database master()
@@ -55,19 +56,6 @@ class DatabaseManager
         }
     }
     
-    protected function _reset()
-    {
-        Model::clearTableCache();
-        self::$dbmArray = array();
-        if ($this->pds !== null) {
-            $this->pds->unUse();
-        }
-        if ($this->pdm !== null) {
-            $this->pdm->unUse();
-            $this->pdm->reset(3);
-        }
-    }
-
     protected function _master()
     {
         return $this->pdm->db();
@@ -174,6 +162,7 @@ class DatabaseManager
             }
         }
     }
+    
     /**
      *
      * @param string $name Connection name
@@ -187,6 +176,34 @@ class DatabaseManager
         }
         return self::$dbmArray[$name];
     }
+    
+    /**
+     * Release all connections force.
+     * 
+     * @return void
+     */
+    public static function reset()
+    {
+        if (!(bool)self::$dbmArray) {
+            return;
+        }
+        Model::clearTableCache();
+        foreach(self::$dbmArray as $dbm) {
+            if ($dbm->pds !== null) {
+                $dbm->pds->unUse();
+            }
+            if ($dbm->pdm !== null) {
+                $dbm->pdm->unUse();
+            }   
+        }
+        reset(self::$dbmArray);
+        $dbm = current(self::$dbmArray);
+        self::$dbmArray = array();
+        if ($dbm->pdm !== null) {
+            $dbm->pdm->reset(3);
+        }
+    }
+
     /**
      * Implemets of __callStatic.
      * When the name is object method , redirected to the default connection object.

@@ -6,11 +6,20 @@ use BizStation\Transactd\Transactd;
 use BizStation\Transactd\ActiveTable;
 use BizStation\Transactd\SortFields;
 use BizStation\Transactd\Recordset;
+use Transactd\IOException;
 
 Transactd::setFieldValueMode(Transactd::FIELD_VALUE_MODE_VALUE);
 
 class QueryExecuter
 {
+    const SEEK_EQUAL = 0;
+    const SEEK_FIRST = 1;
+    const SEEK_LAST =  2;
+    const SEEK_GREATER_OREQUAL = 3;
+    const SEEK_GREATER = 4;
+    const SEEK_LESSTHAN_OREQUAL = 5;
+    const SEEK_LESSTHAN = 6;
+
     protected $at;
     protected $tb = null;
     protected $tbr = null;
@@ -262,15 +271,30 @@ class QueryExecuter
             $dbs = $dbm;
         }
         $this->dbm = $dbm;
+        
+        // For replication, Master first 
+        if ($mode_m !== $mode_s) {
+            $this->tb = $dbm->openTable($tableName, $mode_m);
+            if ($this->tb === null) {
+                throw new IOException($tableName.' table open stat='.$dbm->stat());
+            }
+            //Wait for the table to be created on the slave.
+            /*$db =  ($dbs instanceof BizStation\Transactd\PooledDbManager) ?  $dbs->slave() : $dbs;
+            if ($db !== null) {
+                $index = $db->dbdef()->tableNumByName($tableName);
+                while (!$db->existsTableFile($index)) {
+                    usleep(10000);
+                }
+            }*/
+        }
         $this->at = new ActiveTable($dbs, $tableName, $mode_s);
         if ($this->at === null) {
             throw new IOException($tableName.' active table open stat='.$dbs->stat());
         }
-
-        $this->tb = ($mode_m === $mode_s) ? $this->at->table() : $dbm->openTable($tableName, $mode_m);
-        if ($this->tb === null) {
-            throw new IOException($tableName.' table open stat='.$dbm->stat());
+        if ($mode_m === $mode_s) {
+            $this->tb = $this->at->table();
         }
+
         $this->tb->fetchClass = $className;
         $this->tb->fetchMode = Transactd::FETCH_USR_CLASS;
         $this->tbr = $this->at->table();
@@ -525,6 +549,7 @@ class QueryExecuter
      *
      * @param bool $toArray (optional) false: Get by recordset.
      * @return \Transactd\Collection|BizStation\Transactd\Recordset
+     * @throw IOException
      */
     public function read($toArray = true)
     {
@@ -551,19 +576,15 @@ class QueryExecuter
     {
         try {
             $this->setFetchClass($rs);
-            if ($with === true /*|| $this->spcoll=== true*/) {
-                $toArray = true;
-            }
+            $toArray = ($with === true) ? true : $toArray;
             if ($toArray === true) {
                 $rs = $rs->toArray();
                 if ($with === true) {
-                    $tmp = $this->tb->fetchClass;
-                    $tmp::resolveRelations($rs, $this->with);
+                    Model::resolveRelations($rs, $this->with);
                 }
                 $rs = $this->arrayToCollection($rs);
             }
             $this->reset();
-
             return $rs;
         } catch (\Exception $e) {
             $this->reset();
@@ -576,6 +597,7 @@ class QueryExecuter
      *
      * @param bool $toArray (optional) false: Get by recordset.
      * @return \Transactd\Collection|BizStation\Transactd\Recordset
+     * @throw IOException
      */
     public function get($toArray = true)
     {
@@ -842,7 +864,7 @@ class QueryExecuter
     
     /**
      * Get a genaretor of the current query.
-     *
+     * Please set Index keyValue and query conditions beforehand.
      * @return Generator
      */
     public function cursor()
@@ -855,6 +877,64 @@ class QueryExecuter
             $tb->findNext();
         }
         $this->reset();
+    }
+    
+    private static function createIterator($tb, $forword, $lockBias)
+    {
+        return ($forword) ? new TableForwordIterator($tb, $lockBias) :
+                        new TableReverseIterator($tb, $lockBias);
+    }        
+    
+    /**
+     * Read a record with the $op and return a iteraor. 
+     * Please set key number and key value beforehand.
+     * 
+     * @param type $op
+     * @param type $lockBias SEEK_EQUAL(0) to SEEK_LESSTHAN(6)
+     * @return \Transactd\TableIterator
+     * @throws \InvalidArgumentException
+     */
+    public static function getIterator($tb, $op = 0, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
+    {
+        switch ($op) {
+            case self::SEEK_EQUAL:
+                $tb->seek($lockBias);
+                return self::createIterator($tb, $forword, $lockBias);
+            case self::SEEK_FIRST:
+                $tb->seekFirst($lockBias);
+                return self::createIterator($tb, true, $lockBias);
+            case self::SEEK_GREATER_OREQUAL:
+                $tb->seekGreater(true, $lockBias);
+                return self::createIterator($tb, $forword, $lockBias);
+            case self::SEEK_GREATER:
+                $tb->seekGreater(false, $lockBias);
+                return self::createIterator($tb, $forword, $lockBias);
+            case self::SEEK_LAST:
+                $tb->seekLast($lockBias);
+                return self::createIterator($tb, false, $lockBias);
+            case self::SEEK_LESSTHAN_OREQUAL:
+                $tb->seekLessThan(true, $lockBias);
+                return self::createIterator($tb, $forword, $lockBias);
+            case self::SEEK_LESSTHAN:
+                $tb->seekLessThan(false, $lockBias);
+                return self::createIterator($tb, $forword, $lockBias);
+        }
+        throw new \InvalidArgumentException('Argument 2 $op');
+    }
+       
+    /**
+     * Read a record with the $op and return a writable iteraor. 
+     * Please set Index and keyValue beforehand. And finally call reset() to restore index and keyValue.
+     * 
+     * @param int $op Table::SEEK_EQUAL to Table::SEEK_LESSTHAN
+     * @param int $lockBias
+     * @return \BizStation\Transactd\TableIterator
+     * @throw IOException
+     */
+    public function serverCursor($op = self::SEEK_EQUAL, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
+    {
+        $this->copyKeyValues($this->tb, $this->tbr);
+        return self::getIterator($this->tb, $op, $forword, $lockBias);    
     }
 
     private function prepareCreate($attributes)
@@ -898,7 +978,7 @@ class QueryExecuter
      * @return object
      * @throws IOException
      */
-    public function create($attributes,  $nosave = false)
+    public function create(array $attributes,  $nosave = false)
     {
         $tb = $this->prepareCreate($attributes);
         if ($nosave === false) {
@@ -920,7 +1000,7 @@ class QueryExecuter
      * @return object
      * @throws IOException
      */
-    public function firstOrCreate($attributes)
+    public function firstOrCreate(array $attributes)
     {
         $tb = $this->prepareCreate($attributes);
         $tb->seek();
@@ -937,7 +1017,7 @@ class QueryExecuter
      * @return object
      * @throws IOException
      */
-    public function firstOrNew($attributes)
+    public function firstOrNew(array $attributes)
     {
         $tb = $this->prepareCreate($attributes);
         $tb->seek();
@@ -1096,7 +1176,7 @@ class QueryExecuter
      * @return int Count of effects.
      * @throws IOException
      */
-    public function update($attributes)
+    public function update(array $attributes)
     {
         return count($this->doUpdate($attributes));
     }
@@ -1131,7 +1211,6 @@ class QueryExecuter
             $idsa = $ids;
         }
         try {
-            $this->dbm->beginTrn();
             for ($i = 0; $i < count($idsa); ++$i) {
                 $this->setKeyValues($idsa[$i], $tb);
                 $tmp = $this->deleting;
@@ -1151,11 +1230,8 @@ class QueryExecuter
                     throw new IOException($tb->statMsg(), $tb->stat());
                 }
             }
-            $this->dbm->endTrn();
-
             return $qbjArray;
         } catch (\Exception $e) {
-            $this->dbm->abortTrn();
             $this->reset();
             throw $e;
         }
@@ -1218,7 +1294,7 @@ class QueryExecuter
         if ($tb->stat() !== 0) {
             throw new IOException($tb->statMsg(), $tb->stat());
         }
-        $tmp = $this->saving;
+        $tmp = $this->saved;
         if ($tmp !== null) {
             $tmp::saved($obj);
         }
@@ -1236,7 +1312,7 @@ class QueryExecuter
     {
         return $this->create($attributes, false);
     }
-    
+           
     /**
      * Get a key string from primary key field value of the object.
      *
@@ -1530,7 +1606,8 @@ class QueryExecuter
     }
 
     /**
-     *
+     * Alias to the take
+     * 
      * @param int $n
      * @return \Transactd\QueryExecuter
      */
@@ -1538,7 +1615,18 @@ class QueryExecuter
     {
         $this->q->take($n);
         return $this;
-    }//alias to take
+    }
+    
+    /**
+     * 
+     * @param int $v Nstable::findForword| Nstable::findBackForword
+     * @return \Transactd\QueryExecuter
+     */
+    public function direction($v)
+    {
+        $this->q->direction($v);
+        return $this;
+    }
 
     /**
      * Get a description of the query.
@@ -1588,7 +1676,8 @@ class QueryExecuter
         $s = 'conditions     : '.$q->toString().','.PHP_EOL;
         $s .= '                 reject = '.$q->getReject();
         $s .= ', limit = '.$q->getLimit();
-        $s .= ', stopAtLimit = '.(int) $q->isStopAtLimit().PHP_EOL;
+        $s .= ', stopAtLimit = '.(int) $q->isStopAtLimit();
+        $s .= ', direction = '.(int) $q->getDirection().PHP_EOL;
         return $keyvalue.$s;
     }
 
