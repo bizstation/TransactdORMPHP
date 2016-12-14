@@ -1768,8 +1768,8 @@ class QueryExecuter
     
     /**
      * The alias name of the avg function .
-     * @param type $column
-     * @return type
+     * @param string $column
+     * @return double
      */
     public function average($column)
     {

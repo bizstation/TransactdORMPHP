@@ -671,7 +671,7 @@ class Relation
     }
 
     /**
-     * Add a sub relationship model for mny-to-many.
+     * Add a sub relationship model for many-to-many.
      *
      * @param string $className A class name of relationship.
      * @param int $index Index number of $className table for search.
@@ -694,7 +694,7 @@ class Relation
     }
 
     /**
-     * Add a sub relationship object for mny-to-many.
+     * Add a sub relationship object for many-to-many.
      *
      * @param \Transactd\Relation $rel A relationship object
      * @throws \BadMethodCallException
