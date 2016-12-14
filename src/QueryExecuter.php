@@ -535,15 +535,19 @@ class QueryExecuter
             case 'orderBy':
                 $rs->orderBy($this->sort);
                 break;
-            case 'join':
-                $rs = $this->execJoin($rs, $this->joinParams[$joinCount]);
+            case 'tableJoin':
+                $rs = $this->execTableJoin($rs, $this->joinParams[$joinCount]);
+                ++$joinCount;
+                break;
+            case 'recordsetJoin':
+                $rs = $this->execRecordsetJoin($rs, $this->joinParams[$joinCount]);
                 ++$joinCount;
                 break;
             }
         }
         return $rs;
     }
-
+    
     /**
      * Execute the contents of the queue in the order. And returns the result.
      *
@@ -616,7 +620,7 @@ class QueryExecuter
         return $this->getResults($rs, $toArray, $with);
     }
 
-    private function execJoin($rs, $p)
+    private function execTableJoin($rs, $p)
     {
         $keyNmaes = $p[2];
         $q = $p[1];
@@ -636,36 +640,63 @@ class QueryExecuter
         $q->reset();
         return $rs;
     }
+    
+    private function execRecordsetJoin($rs, $p)
+    {
+        if ($p[0] === true) {
+            $rs = $rs->outerJoin($p[1], $p[2]);
+        } else {
+            $rs = $rs->Join($p[1], $p[2]);
+        }
+        return $rs;
+    }
 
     private function addJoin($q, $keyNmaes, $outer)
     {
         array_push($this->joinParams, array($outer, $q, $keyNmaes));
-        array_push($this->oprOrder, 'join');
+        if ($q instanceof \BizStation\Transactd\Recordset) {
+            array_push($this->oprOrder, 'recordsetJoin');
+        } else {
+            array_push($this->oprOrder, 'tableJoin');
+        }
         return $this;
     }
 
     /**
      * Add the outer-join in the execution queue.
      *
-     * @param \BizStation\Transactd\Query $q Queryy of select field.
-     * @param string[] $keyNmaes Key names of source table.
+     * Table outer-join : Specify QueryExecuter and keyNmaes.
+     * Recordset outer-join : Specify Recordset and RecordsetQuery.
+     * @param \Transactd\QueryExecuter|\Transactd\Recordset $qOrRs QueryExecuter or \Transactd\Recordset 
+     * @param string|string[]|RecordsetQuery $keyNmaesOrRecordsetQuery Key names of this table or RecordsetQuery.
      * @return \Transactd\Collection
      */
-    public function outerJoin($q, $keyNmaes)
+    public function outerJoin($qOrRs, $keyNmaesOrRecordsetQuery)
     {
-        return $this->addJoin($q, $keyNmaes, true);
+        if ($qOrRs instanceof \Transactd\QueryExecuter) {
+            if (!is_array($keyNmaesOrRecordsetQuery)) {
+                $keyNmaesOrRecordsetQuery = array($keyNmaesOrRecordsetQuery);
+            }  
+        } 
+        return $this->addJoin($qOrRs, $keyNmaesOrRecordsetQuery, true);
     }
 
     /**
      * Add the inner-join in the execution queue.
-     *
-     * @param \BizStation\Transactd\Query $q Queryy of select field.
-     * @param string[] $keyNmaes Key names of source table.
+     * Table inner-join : Specify QueryExecuter and keyNmaes.
+     * Recordset inner-join : Specify Recordset and RecordsetQuery.
+     * @param \Transactd\QueryExecuter|\Transactd\Recordset $qOrRs QueryExecuter or \Transactd\Recordset 
+     * @param string|string[]|RecordsetQuery $keyNmaesOrRecordsetQuery Key names of this table or RecordsetQuery.
      * @return \Transactd\Collection
      */
-    public function join($q, $keyNmaes)
+    public function join($qOrRs, $keyNmaesOrRecordsetQuery)
     {
-        return $this->addJoin($q, $keyNmaes, false);
+        if ($qOrRs instanceof \Transactd\QueryExecuter) {
+            if (!is_array($keyNmaesOrRecordsetQuery)) {
+                $keyNmaesOrRecordsetQuery = array($keyNmaesOrRecordsetQuery);
+            }  
+        } 
+        return $this->addJoin($qOrRs, $keyNmaesOrRecordsetQuery, false);
     }
 
     /**

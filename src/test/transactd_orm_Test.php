@@ -12,6 +12,7 @@ use BizStation\Transactd\Transactd;
 use BizStation\Transactd\Database;
 use BizStation\Transactd\Tabledef;
 use BizStation\Transactd\GroupQuery;
+use BizStation\Transactd\RecordsetQuery;
 use BizStation\Transactd\Count;
 use BizStation\Transactd\Query;
 use Transactd\Model;
@@ -1162,11 +1163,27 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->showMemoryUsage();
     }
     
-    public function testJoin()
+    public function testTableJoin()
     {
         $query = Follower::index(1)->select('followed_id');
         $customers = Customer::index(0)->keyValue(1)->select('id')->where('id', '>=', 1)
             ->where('id', '<=', 10)->join($query, ['id'])->get();
+        $this->assertEquals($customers[0]->id, 1);
+        $this->assertEquals($customers[0]->followed_id, 200);
+        $this->assertEquals($customers[1]->followed_id, 400);
+        $this->assertEquals($customers[2]->followed_id, 600);
+        $this->assertEquals(count($customers), 500);
+        $this->showMemoryUsage();
+    }
+    
+    public function testRecordsetJoin()
+    {
+        $rs = Follower::index(1)->select('following_id', 'followed_id')->recordset();
+        $rq = new RecordsetQuery;
+        $rq->when('id', '=', 'following_id');
+        $customers = Customer::index(0)->keyValue(1)->select('id')->where('id', '>=', 1)
+            ->where('id', '<=', 10)->join($rs, $rq)->get();
+        $this->assertEquals(count($customers), 500);
         $this->assertEquals($customers[0]->id, 1);
         $this->assertEquals($customers[0]->followed_id, 200);
         $this->assertEquals($customers[1]->followed_id, 400);

@@ -271,9 +271,9 @@ function createStockSchema($sb)
     $tb->save();
 }
 
-function createDaylySummarySchema($sb)
+function createDailySummarySchema($sb)
 {
-    $tb = $sb->addTable('dayly_summaries');
+    $tb = $sb->addTable('daily_summaries');
     $tb->addField('date', Transactd::ft_mydate, 3);
     $tb->addField('slaes_amount', Transactd::ft_integer, 4);
     $tb->addField('tax_amount', Transactd::ft_integer, 4);
@@ -291,7 +291,7 @@ function createTestData()
         createCustomerSchema($sb);
         createProductSchema($sb);
         createStockSchema($sb);
-        createDaylySummarySchema($sb);
+        createDailySummarySchema($sb);
         $sb->close();
     } catch(Exception $e) {
         echo PHP_EOL.$e->getMessage().PHP_EOL.PHP_EOL;
@@ -364,11 +364,11 @@ Trait AmountBase
     }
 }
 
-class DaylySummary extends Model
+class DailySummary extends Model
 {
     use AmountBase;
     protected static $guarded = [];
-    protected static $table = 'dayly_summaries';
+    protected static $table = 'daily_summaries';
     static protected $aliases  = ['slaes_amount' => 'sales', 'tax_amount' => 'tax', 'payment_amount' => 'payment'];
     
     public function invoices()
@@ -437,17 +437,17 @@ class InvoiceItemSaveHandler
 
     public function onEnd()
     {
-        $it = DaylySummary::index(0)->keyValue($this->date)->serverCursor();    
+        $it = DailySummary::index(0)->keyValue($this->date)->serverCursor();    
         if ($it->valid()) {
-            $dayly = $it->current();
-            $dayly->sum($this->amount);
-            $it->update($dayly);
+            $daily = $it->current();
+            $daily->sum($this->amount);
+            $it->update($daily);
         }else {
-            $dayly = new DaylySummary(['date' => $this->date]);
-            $dayly->sum($this->amount);
-            $it->insert($dayly);
+            $daily = new DailySummary(['date' => $this->date]);
+            $daily->sum($this->amount);
+            $it->insert($daily);
         }
-        DaylySummary::resetQuery();
+        DailySummary::resetQuery();
         Stock::resetQuery();
     }
 
@@ -490,9 +490,10 @@ class Invoice extends Model
     public static $guarded = ['id'];
     public $id = 0;
     public $date;
+    protected $update_at;
     public $amount = null;
     private $baseBalance = 0;
-    const INSERT = true;
+
     public function __construct()
     {
         parent::__construct();
@@ -536,14 +537,21 @@ class Invoice extends Model
     {
         if ($difference !== 0) {
             $it->next();
-            foreach($it as $inv) {
-                if ($inv->customer_id !== $this->customer_id) {
-                    break;
+            try {
+                $it->setTimestampMode(Transactd::TIMESTAMP_VALUE_CONTROL);
+                foreach($it as $inv) {
+                    if ($inv->customer_id !== $this->customer_id) {
+                        break;
+                    }
+                    $inv->amount->balance += $difference;
+                    $it->update($inv);// No cache update
+                    $inv->updateCache();
                 }
-                $inv->amount->balance += $difference;
-                $it->update($inv);// No cache update
-                $inv->updateCache();
-            }   
+                $it->setTimestampMode(Transactd::TIMESTAMP_ALWAYS);
+            } catch (Exception $e) {
+                $it->setTimestampMode(Transactd::TIMESTAMP_ALWAYS);
+                throw $e;
+            }
         }
     }
     
@@ -613,7 +621,7 @@ class Invoice extends Model
     private function prepareTables()
     {
         Stock::prepareTable();
-        DaylySummary::prepareTable();
+        DailySummary::prepareTable();
         InvoiceItem::prepareTable();
     }
     
@@ -711,7 +719,7 @@ class Invoice2 extends Model
     protected static $table = 'invoices'; 
 
 }
-if (class_exists('Thread')) {
+if (class_exists('Thread') && PHP_OS === 'WIN32') {
     class InvoiceInsert extends Thread
     {
         public function __construct()
@@ -803,7 +811,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $stock = Stock::find('ORANGE1');       
         $this->assertEquals($stock->quantity , 52);
         //Summary
-        $sum = DaylySummary::find($inv->date);
+        $sum = DailySummary::find($inv->date);
         $this->assertEquals($sum->sales , $inv->amount->sales);
         $this->assertEquals($sum->tax , $inv->amount->tax);
         $this->assertEquals($sum->payment , $inv->amount->payment);
@@ -831,7 +839,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $inv = Invoice::find(2);
         $this->assertEquals($inv->amount->balance , 193840);
         
-        $sum = DaylySummary::find($inv->date);
+        $sum = DailySummary::find($inv->date);
         $this->assertEquals($sum->sales , $inv->amount->sales);
         $this->assertEquals($sum->tax , $inv->amount->tax);
         $this->assertEquals($sum->payment , $inv->amount->payment);
@@ -850,8 +858,8 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         Invoice::clear();
         $inv2 = Invoice::find(1);
         //Summary
-        DaylySummary::clear();
-        $sum = DaylySummary::find($inv->date);
+        DailySummary::clear();
+        $sum = DailySummary::find($inv->date);
         $this->assertEquals($sum->sales , $inv->amount->sales + $inv2->amount->sales);
         $this->assertEquals($sum->tax , $inv->amount->tax+ $inv2->amount->tax);
         $this->assertEquals($sum->payment , $inv->amount->payment+ $inv2->amount->payment);
@@ -885,8 +893,8 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $inv2 = Invoice::find(1);
         $this->assertEquals($inv2->amount->balance , 0);
         
-        DaylySummary::clear();
-        $sum = DaylySummary::find($inv->date);
+        DailySummary::clear();
+        $sum = DailySummary::find($inv->date);
         $this->assertEquals($sum->sales , 0);
         $this->assertEquals($sum->tax , 0);
         $this->assertEquals($sum->payment , 0);
@@ -894,7 +902,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     
     public function test_InvoiceNumber()
     {
-        if (class_exists('Thread')) {
+        if (class_exists('Thread') && PHP_OS === 'WIN32') {
             $thread = new InvoiceInsert();
             DB::connect(URI, URI, 'connection2');
             Invoice2::prepareTable();
@@ -936,7 +944,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->assertEquals($items[0]->product->stock->quantity, 108);
         $this->assertEquals($items[0]->invoice->id, 1);
         
-        $summery = DaylySummary::find($inv->date);
+        $summery = DailySummary::find($inv->date);
         $invs = $summery->invoices;
         $this->assertEquals(count($invs) , 2);
         

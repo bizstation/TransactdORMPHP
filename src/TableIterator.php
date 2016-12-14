@@ -112,5 +112,14 @@ abstract class TableIterator implements \Iterator
         nstable_del($this->cPtr, false /*in_key*/);
         $this->validOrFail();
     }
+    
+    /**
+     * 
+     * @param int $mode Transactd::TIMESTAMP_ALWAYS | Transactd::TIMESTAMP_VALUE_CONTROL
+     */
+    public function setTimestampMode($mode)
+    {
+        nstable_setTimestampMode($this->cPtr, $mode);
+    }
 }
 
