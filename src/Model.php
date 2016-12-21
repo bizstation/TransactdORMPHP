@@ -100,7 +100,7 @@ class Model
      */
     public function __construct(array $params = null)
     {
-        $this->className = get_called_class();
+        $this->className = get_class($this);
         
         if ($params !== null) {
             $params = $this->filterCreateAttribute($params);
@@ -141,7 +141,18 @@ class Model
      */
     public static function prepareTable()
     {
-        self::queryExecuter();
+        self::queryExecuterQuick();
+    }
+    
+    private static function queryExecuterQuick($className = null)
+    {
+        if ($className === null) {
+            $className = get_called_class();
+        }
+        if (array_key_exists($className, self::$tables)) {
+            return self::$tables[$className];
+        }
+        return self::queryExecuter($className);
     }
     
     /**
@@ -263,14 +274,14 @@ class Model
     public function getPrimaryKeyFieldName($fieldNames)
     {
         if ($fieldNames === null) {
-            return $this->queryExecuter()->primaryKeyFieldNames();
+            return $this->queryExecuterQuick()->primaryKeyFieldNames();
         }
         return $fieldNames;
     }
 
     private function getRelationDestKeyNum($className, $keyFields, $ignoreSegmentCount = false)
     {
-        return $className::queryExecuter($className)->getIndexByFieldNames($keyFields, $ignoreSegmentCount, $ignoreSegmentCount);
+        return $className::queryExecuterQuick($className)->getIndexByFieldNames($keyFields, $ignoreSegmentCount, $ignoreSegmentCount);
     }
 
     private function getCachedRelation($key)
@@ -415,7 +426,7 @@ class Model
     {
         // keyValuePropertyNames ["[$self]" , $this->{$localKey}]
         if ($keyValuePropertyNames === null) {
-            $keyValuePropertyNames = $self::queryExecuter()->primaryKeyFieldNames();
+            $keyValuePropertyNames = $self::queryExecuterQuick()->primaryKeyFieldNames();
             array_splice($keyValuePropertyNames, 0, 0, "[$self]"); // insert first. Fixed value
         }
 
@@ -690,7 +701,7 @@ class Model
         }
         $type = Relation::TYPE_HAS_ONE;
         if ($className !== null) {
-            $hasMany = $className::queryExecuter()->isSeekHasMany($index, $segments);
+            $hasMany = $className::queryExecuterQuick()->isSeekHasMany($index, $segments);
             if ($hasMany === true) {
                 $type = Relation::TYPE_HAS_MANY;
                 if (is_array($keyValuePropertyNames) === true) {
@@ -701,13 +712,13 @@ class Model
                         }
                     }
                 }
-            } elseif ($index === $className::queryExecuter()->primarykey()) {
+            } elseif ($index === $className::queryExecuterQuick()->primarykey()) {
                 if (is_array($keyValuePropertyNames) && $keyValuePropertyNames[0][0] === '[') {
                     $type = Relation::TYPE_MORPHONE;
                     $optimize = $optimize === null ? false: $optimize;
                 } else {
                     $idx = $this->getRelationDestKeyNum($self, $keyValuePropertyNames, true);
-                    if ($idx !== $self::queryExecuter()->primarykey()) {
+                    if ($idx !== $self::queryExecuterQuick()->primarykey()) {
                         $type = Relation::TYPE_BELONGSTO;
                         $optimize = $optimize === null ? true: $optimize;
                     }
@@ -901,7 +912,7 @@ class Model
     {
         return self::queryExecuter()->refresh($this);
     }
-   
+    
     /**
      * Update this cache.
      * 
@@ -909,7 +920,7 @@ class Model
      */
     public function updateCache($clear = false)
     {
-        self::queryExecuter()->updateCache($this, $clear);
+        self::queryExecuterQuick()->updateCache($this, $clear);
     }
     
     /**
@@ -923,15 +934,18 @@ class Model
      */   
     public function serverCursor($index = null, $op = QueryExecuter::SEEK_EQUAL, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
     {
-        $qe = self::queryExecuter();
-        if ($index === null) {
-            $qe->index($qe->primaryKey);
-        } else {
-            $qe->index($index);
-        }
+        $qe = self::queryExecuterQuick();
         $tb = $qe->getWritableTable();
-        $tb->getRecord()->setValueByObject($this);
-        return QueryExecuter::getIterator($tb, $op, $forword, $lockBias);
+        if ($index === null) {
+            $tb->setKeyNum($qe->primaryKey);
+        } else {
+            $tb->setKeyNum($index);
+        }
+        if ($op > QueryExecuter::SEEK_LAST) {
+            $cPtr = table_fields($tb->cPtr, transactd::FETCH_RECORD_INTO, null,  null);
+            Record_setValueByObject($cPtr, $this);
+        }
+        return QueryExecuter::getIterator($tb, $op, $forword, $lockBias); 
     }
     
     /**

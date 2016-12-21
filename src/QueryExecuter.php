@@ -14,9 +14,9 @@ Transactd::setFieldValueMode(Transactd::FIELD_VALUE_MODE_VALUE);
 
 class QueryExecuter
 {
-    const SEEK_EQUAL = 0;
-    const SEEK_FIRST = 1;
-    const SEEK_LAST =  2;
+    const SEEK_FIRST = 0;
+    const SEEK_LAST =  1;
+    const SEEK_EQUAL = 2;
     const SEEK_GREATER_OREQUAL = 3;
     const SEEK_GREATER = 4;
     const SEEK_LESSTHAN_OREQUAL = 5;
@@ -944,21 +944,21 @@ class QueryExecuter
     public static function getIterator($tb, $op = 0, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
     {
         switch ($op) {
-            case self::SEEK_EQUAL:
-                $tb->seek($lockBias);
-                return self::createIterator($tb, $forword, $lockBias);
             case self::SEEK_FIRST:
                 $tb->seekFirst($lockBias);
                 return self::createIterator($tb, true, $lockBias);
+            case self::SEEK_LAST:
+                $tb->seekLast($lockBias);
+                return self::createIterator($tb, false, $lockBias);
+            case self::SEEK_EQUAL:
+                $tb->seek($lockBias);
+                return self::createIterator($tb, $forword, $lockBias);
             case self::SEEK_GREATER_OREQUAL:
                 $tb->seekGreater(true, $lockBias);
                 return self::createIterator($tb, $forword, $lockBias);
             case self::SEEK_GREATER:
                 $tb->seekGreater(false, $lockBias);
                 return self::createIterator($tb, $forword, $lockBias);
-            case self::SEEK_LAST:
-                $tb->seekLast($lockBias);
-                return self::createIterator($tb, false, $lockBias);
             case self::SEEK_LESSTHAN_OREQUAL:
                 $tb->seekLessThan(true, $lockBias);
                 return self::createIterator($tb, $forword, $lockBias);
@@ -980,7 +980,9 @@ class QueryExecuter
      */
     public function serverCursor($op = self::SEEK_EQUAL, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
     {
-        $this->copyKeyValues($this->tb, $this->tbr);
+        if ($op > QueryExecuter::SEEK_LAST) {
+            $this->copyKeyValues($this->tb, $this->tbr);
+        }
         return self::getIterator($this->tb, $op, $forword, $lockBias);    
     }
 

@@ -506,17 +506,20 @@ class Invoice extends Model
         $this->amount = new InvoiceAmount;
         $this->date = date("Y/m/d");
     }
+    
     public function items()
     {
         return $this->hasMany('InvoiceItem');
     }
+    
     public function customer()
     {
         return $this->belongsTo('Customer');
     }
+    
     private function assignInvoiceNumber()
     {
-        $it = Invoice::index(0)->serverCursor(QueryExecuter::SEEK_LAST);
+        $it = Invoice::serverCursor(0, QueryExecuter::SEEK_LAST);
         if ($it->valid()) {
             $inv = $it->current();
             $this->id = $inv->id + 1;
@@ -528,8 +531,7 @@ class Invoice extends Model
     private function readBaseBalance()
     {
         $this->baseBalance = 0;
-        $it = Invoice::index(1)->keyValue($this->customer_id, $this->date, $this->id)
-                ->serverCursor(QueryExecuter::SEEK_LESSTHAN);
+        $it = Invoice::serverCursor(1, QueryExecuter::SEEK_LESSTHAN);
         if ($it->valid()) {
             $inv = $it->current();
             if ($inv->customer_id === $this->customer_id) {
@@ -589,7 +591,7 @@ class Invoice extends Model
             $it->update($this);
         }
         $this->items->save();
-        
+        $this->updateCache(); // キャッシュを更新
         $this->updateBalanceAmount($this->amount->difference());
         InvoiceItem::$handler->onEnd();
     }
@@ -599,10 +601,12 @@ class Invoice extends Model
         InvoiceItem::$handler = new InvoiceItemSaveHandler($this->date);
         InvoiceItem::$handler->onStart();
         $it = $this->serverCursor(1, QueryExecuter::SEEK_EQUAL);
-        $difference = $this->amount->total();
-        $this->items->delete();
+        $it->validOrFail();
+        $this->conflictFail($it->current()); // 変更競合の検出をする
         $it->delete();
-        $this->updateBalanceAmount(0 - $difference);
+        $this->items->delete();
+        $this->updateCache(true); // キャッシュをクリア
+        $this->updateBalanceAmount(0 - $this->amount->difference());
         InvoiceItem::$handler->onEnd();
     }
         
@@ -763,6 +767,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
             usleep(WAIT_UTIME);
         }
     }
+    
     private function addProduct($code, $desc, $price, $qty)
     {
         $prod = Product::create(['code' => $code, 'description' => $desc, 'price' => $price]);
