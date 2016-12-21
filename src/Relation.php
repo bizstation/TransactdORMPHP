@@ -453,21 +453,14 @@ class Relation
      */
     public function deleteAll($src)
     {
-        $n = 0;
-        $values = $this->getFieldValues($src);
         if (($this->type & self::TYPE_HAS_MANY) !== self::TYPE_HAS_MANY) {
             return 0;
         }
-        $rs = $this->getMany($values, false/* Recordset */);
-        foreach ($rs as $obj) {
-            if ($obj !== null) {
-                $obj->delete();
-                ++$n;
-            }
-        }
-        return $n;
+        $values = $this->getFieldValues($src);
+        $tmp = $this->destClassName;
+        $tmp::index($this->destIndex)->deleteMany($values);
     }
-
+        
     /**
      * The relation of the specified collection, and then batch acquisition.
      *

@@ -348,6 +348,15 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
     {
         $this->rel = $rel;
     }
+    
+    /**
+     * 
+     * @param Trnasactd\Model $parent
+     */
+    public function setParent($parent)
+    {
+        $this->parent = $parent;
+    }
     /**
      *
      * @param string $fieldName
@@ -382,7 +391,8 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
     private static function serialize($obj)
     {
         $s = '{';
-        $s .= '"className":'.json_encode($obj->className).', "array":{';
+        $s .= '"saveOprions":'.$obj->saveOprions.', "className":'.json_encode($obj->className).', "array":{';
+       
         foreach ($obj->array as $key => $value) {
             $s .= '"'.$key.'":';
             if (is_object($value) === true) {

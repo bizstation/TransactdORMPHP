@@ -6,7 +6,9 @@ use BizStation\Transactd\Transactd;
 use BizStation\Transactd\ActiveTable;
 use BizStation\Transactd\SortFields;
 use BizStation\Transactd\Recordset;
+use BizStation\Transactd\Table;
 use Transactd\IOException;
+
 
 Transactd::setFieldValueMode(Transactd::FIELD_VALUE_MODE_VALUE);
 
@@ -103,9 +105,9 @@ class QueryExecuter
         $this->union = null;
         $this->removeInvalidRecord = false;
         $this->q->reset();
-        $this->at->index($this->primaryKey);
-        $this->tb->setKeyNum($this->primaryKey);
-        $this->at->table()->clearBuffer();
+        activeTable_index($this->at->cPtr, $this->primaryKey);
+        nstable_setKeyNum($this->tb->cPtr, $this->primaryKey);
+        table_clearBuffer($this->tbr->cPtr, Table::defaultNull);
         $this->joinParams = array();
         $this->with = array();
         return $this;
@@ -134,22 +136,26 @@ class QueryExecuter
 
     private function cacheKeyFields()
     {
-        $td = $this->tb->tableDef();
-        $this->primaryKey = $td->primaryKeynum;
-        for ($i = 0; $i < $td->keyCount; ++$i) {
+        $tdPtr = table_tableDef($this->tb->cPtr);
+        $this->primaryKey = tabledef_primarykeynum_get($tdPtr);
+        $keycount = tabledef_keycount_get($tdPtr);
+        for ($i = 0; $i < $keycount; ++$i) {
             $fds = array();
             $names = array();
-            $kd = $td->keyDef($i);
-            for ($j = 0; $j < $kd->segmentCount; ++$j) {
-                $n = $kd->segment($j)->fieldNum;
+            $kdPtr = tabledef_keyDef($tdPtr, $i);
+            $segments = keydef_segmentcount_get($kdPtr);
+            for ($j = 0; $j < $segments; ++$j) {
+                $cPtr = keydef_segment($kdPtr, $j);
+                $n = keySegment_fieldNum_get($cPtr);
                 $fds[$j] = $n;
-                $names[$j] = $td->fieldDef($n)->name();
-                if ($i === $this->primaryKey) {
-                    $this->primaryKeyFieldNames[$j] = $names[$j];
-                }
+                $cPtr = tabledef_fieldDef($tdPtr, $n);
+                $names[$j] = fielddef_name($cPtr);
             }
             $this->keyFieldCache[$i] = $fds;
             $this->keyFieldNameCache[$i] = $names;
+        }
+        if ($this->primaryKey >= 0 && $this->primaryKey < $keycount) {
+            $this->primaryKeyFieldNames = $this->keyFieldNameCache[$this->primaryKey];
         }
     }
     
@@ -193,6 +199,16 @@ class QueryExecuter
     {
         return $this->keyFieldNameCache[$index];
     }
+    
+    
+    private function isDuplicatableKey($index)
+    {
+        $cPtr = table_tableDef($this->tb->cPtr);
+        $cPtr = tabledef_keyDef($cPtr, $index);
+        $cPtr = keydef_segment($cPtr, 0);
+        $cPtr = keySegment_flags_get($cPtr);
+        return FLAGS_bit0_get($cPtr) === 1;
+    }
 
     /**
      * Returns whether multiple records search from the specified parameters.
@@ -206,9 +222,7 @@ class QueryExecuter
         if ($segments < count($this->keyFieldCache[$index])) {
             return true;
         }
-        $kd = $this->tb->tableDef()->keyDef($index);
-
-        return $kd->segment(0)->flags->bit0 === 1;
+        return $this->isDuplicatableKey($index);
     }
 
     /**
@@ -291,15 +305,14 @@ class QueryExecuter
         if ($this->at === null) {
             throw new IOException($tableName.' active table open stat='.$dbs->stat());
         }
+        $this->tbr = $this->at->table();
         if ($mode_m === $mode_s) {
-            $this->tb = $this->at->table();
+            $this->tb = $this->tbr;
         }
 
         $this->tb->fetchClass = $className;
         $this->tb->fetchMode = Transactd::FETCH_USR_CLASS;
-        $this->tbr = $this->at->table();
         $this->setFetchClass($this->tbr);
-
         $this->cacheKeyFields();
         $this->q = new QueryAdapter();
         $this->obj = new $className();
@@ -313,10 +326,12 @@ class QueryExecuter
      */
     protected function copyKeyValues($tb, $src)
     {
-        $td = $tb->tableDef();
-        $kd = $td->keyDef($tb->keyNum());
-        for ($i = 0; $i < $kd->segmentCount; ++$i) {
-            $index = $kd->segment($i)->fieldNum;
+        $cPtr = table_tableDef($tb->cPtr);
+        $kdPtr = tabledef_keyDef($cPtr, $tb->keyNum());
+        $segments = keydef_segmentCount_get($kdPtr);
+        for ($i = 0; $i < $segments; ++$i) {
+            $cPtr = keydef_segment($kdPtr, $i);
+            $index = keySegment_fieldNum_get($cPtr);
             $tb->setFV($index, $src->getFVstr($index));
         }
     }
@@ -340,7 +355,7 @@ class QueryExecuter
             $tb->setFV($fields[0], $id);
         }
     }
-    
+        
     /**
      *
      * @param string|string[] $fieldNames
@@ -371,8 +386,7 @@ class QueryExecuter
                     }
                 }
                 if ($flag === true) {
-                    if ($notUniqueAble === false &&
-                            $this->tb->tableDef()->keyDef($i)->segment(0)->flags->bit0 === 1) {
+                    if ($notUniqueAble === false && $this->isDuplicatableKey($i)) {
                         throw new \UnexpectedValueException('Index is not unique key.');
                     }
                     return $i;
@@ -419,9 +433,11 @@ class QueryExecuter
     public function setAliases($aliases)
     {
         foreach ($aliases as $key => $value) {
-            $this->at->alias($key, $value);
-            $this->tbr->setAlias($key, $value);
-            $this->tb->setAlias($key, $value);
+            activeTable_alias($this->at->cPtr, $key, $value);
+            table_setAlias($this->tbr->cPtr, $key, $value);
+            if ($this->tbr->cPtr !== $this->tb->cPtr) {
+                table_setAlias($this->tb->cPtr, $key, $value);
+            }
         }
     }
 
@@ -1343,6 +1359,52 @@ class QueryExecuter
     {
         return $this->create($attributes, false);
     }
+    
+    /**
+     * Delete records by current index's values.
+     * NOTE: The current record is changed by this operation.  
+     * @param array $values
+     * @param function $func onDeleted event function func($obj)
+     * @return int Number of deleted object.
+     */
+    public function deleteMany($values, $func = null) 
+    {
+        $tmp = $this->deleting;
+        $tmp2 = $this->deleted;
+        $n = 0;
+        $tb = $this->getWritableTable();
+        $tb->clearBuffer();
+        $this->setKeyValues($values, $tb);
+        $count = count($values);
+        $fdnames = $this->keyFieldNameCache[$tb->keyNum()];
+        $it = self::getIterator($tb, self::SEEK_GREATER_OREQUAL, true, Transactd::LOCK_BIAS_DEFAULT); 
+        while ($it->valid()) {
+            $falg = true;
+            for ($i = 0; $i < $count; ++$i) {
+                $obj = $it->current();
+                if ($obj->{$fdnames[$i]} !== $values[$i]) {
+                    $falg = false;
+                    break;
+                }
+            }
+            if ($falg === false) {
+                break;
+            }
+            if ($tmp !== null && $tmp::deleting($obj) === false) {
+                return false;
+            }
+            $it->delete();
+            if ($func !== null) {
+                $func($obj);
+            }
+            if ($tmp2 !== null) {
+                $tmp2::deleted($obj);
+            }
+            ++$n;
+            $it->next();
+        }
+        return $n;
+    } 
            
     /**
      * Get a key string from primary key field value of the object.

@@ -36,7 +36,7 @@ class QueryAdapter
         $this->whereFlag = false;
         $this->skip = 0;
         $this->take = 0;
-        $this->q->reset();
+        query_reset($this->q->cPtr);
     }
 
     public function isWhereDefined()

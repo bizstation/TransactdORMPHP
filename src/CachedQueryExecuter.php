@@ -271,4 +271,18 @@ class CachedQueryExecuter extends QueryExecuter
         }
         return count($array);
     }
+    
+     /**
+     * Delete records by current index's values.
+     * NOTE: The current record is changed by this operation.  
+     * @param array $values
+     * @param function $func Igonered in this function.
+     * @return int Number of deleted object.
+     */
+    public function deleteMany($values, $func=null) 
+    {
+        return parent::deleteMany($values, function($obj){
+            $this->updateCache($obj, true);
+        });
+    }
 }

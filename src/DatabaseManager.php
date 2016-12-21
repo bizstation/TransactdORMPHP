@@ -14,7 +14,6 @@ use Transactd\IOException;
  * @method \BizStation\Transactd\Database master()
  * @method \BizStation\Transactd\Database slave()
  * @method QueryExecuter queryExecuter(string $tableName, string $className = 'stdClass')
- * @method CachedQueryExecuter cachedQueryExecuter(string $tableName, string $className = 'stdClass')
  * @method \BizStation\Transactd\Table table(string $tableName)
  * @method void beginTrn(int $bias = null)
  * @method void endTrn()
@@ -38,7 +37,7 @@ class DatabaseManager
         throw new IOException($db->statMsg(), $db->stat());
     }
 
-    private function doConnect($urim, $uris)
+    private function doConnect($urim, $uris, $otherConnection = false)
     {
         if ($urim != '') {
             PooledDbManager::setMaxConnections(PooledDbManager::maxConnections() + 1);
@@ -46,8 +45,11 @@ class DatabaseManager
             $this->urim = $uri;
             $this->pdm = new PooledDbManager();
             $this->pdm->c_use($uri);
+            if (!$otherConnection && $urim === $uris) {
+                $this->pds = $this->pdm;
+            }
         }
-        if ($uris != '') {
+        if ($uris != '' && ($urim !== $uris || $otherConnection)) {
             PooledDbManager::setMaxConnections(PooledDbManager::maxConnections() + 1);
             $uri = new ConnectParams($uris);
             $this->uris = $uri;
@@ -68,8 +70,14 @@ class DatabaseManager
         }
         return null;
     }
-
-    protected function _cachedQueryExecuter($tableName, $className = 'stdClass')
+    /**
+     * Create a cachedQueryExecuter
+     * 
+     * @param string $tableName
+     * @param string $className
+     * @return \Transactd\CachedQueryExecuter
+     */
+    public function cachedQueryExecuter($tableName, $className = 'stdClass')
     {
         if (self::$tableCash === true) {
             return new CachedQueryExecuter($tableName, $this->pdm, $this->pds, $className);
@@ -116,7 +124,7 @@ class DatabaseManager
 
     protected function _endSnapshot()
     {
-        $this->pds->endSnapshot();
+        return $this->pds->endSnapshot();
     }
 
     protected function _beginTransaction($bias = null)
@@ -148,15 +156,16 @@ class DatabaseManager
      * @param string $urim Uri for master
      * @param string $uris Uri for slave
      * @param string $name Connection name
+     * @param bool $otherConnection Force creates other connection if $urim === $uris. 
      * @return self
      */
-    public static function connect($urim, $uris, $name = 'default')
+    public static function connect($urim, $uris, $name = 'default', $otherConnection = false)
     {
         if (!array_key_exists($name, self::$dbmArray)) {
             if (!array_key_exists($name, self::$dbmArray)) {
                 $dbm = new self();
                 $dbm->name = $name;
-                $dbm->doConnect($urim, $uris);
+                $dbm->doConnect($urim, $uris, $otherConnection);
                 self::$dbmArray[$name] = $dbm;
                 return $dbm;
             }

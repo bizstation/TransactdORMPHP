@@ -731,6 +731,69 @@ class Model
         self::queryExecuter()->reset();
     }
     
+    /**
+     * Find a Model from the table by the current key.
+     *
+     * @param mixed|mixed[] $id The primary key values.
+     * @param bool $throwException Whether to return an error when an exception.
+     * @return object|null
+     * @throws ModelNotFoundException
+     */
+    public static function find($id, $throwException = false)
+    {
+        return self::queryExecuter()->find($id, $throwException);
+    }
+    
+    /**
+     * Set the index number for search.
+     *
+     * @param int $index
+     * @return \Transactd\QueryExecuter
+     */
+    public static function index($index)
+    {
+       return self::queryExecuter()->index($index);
+    }
+    
+    /**
+     * Set key value(s) of current key.
+     *
+     * @param mixed $v1 First segment value.
+     * @param mixed $v2 (optional) Second segment value.
+     * @param mixed $v3 (optional) Third segment value.
+     * @param mixed $v4 (optional) Fourth segment value.
+     * @param mixed $v5 (optional) Fifth segment value.
+     * @param mixed $v6 (optional) Sixth segment value.
+     * @param mixed $v7 (optional) Seventh segment value.
+     * @param mixed $v8 (optional) Eighth segment value.
+     * @return \Transactd\QueryExecuter
+     */
+    public static function keyValue($v1, $v2 = null, $v3 = null, $v4 = null, $v5 = null, $v6 = null, $v7 = null, $v8 = null)
+    {
+        return self::queryExecuter()->keyValue($v1, $v2, $v3, $v4, $v5, $v6, $v7, $v8);
+    }
+    
+    /**
+     * Reads all records from a table by the primary key.
+     *
+     * @param bool $toArray (optional) false: Get by recordset.
+     * @return \Transactd\Collection|BizStation\Transactd\Recordset
+     */
+    public static function all($toArray = true)
+    {
+        return self::queryExecuter()->all($toArray);
+    }
+    
+    /**
+     *
+     * @param string $func
+     * @return \Transactd\QueryExecuter
+     */
+    public static function with($func)
+    {
+        return self::queryExecuter()->with($func);
+    }
+    
     
     /**
      * Implementation of __callStatic method.

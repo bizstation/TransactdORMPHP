@@ -17,7 +17,7 @@ Execution environment
 -------------------------------------------------------------------------------
 ### Database
 - MySQL 5.6/MariaDB 5.5 or later
-- [Transactd Plugin 3.7 or later](http://www.bizstation.jp/en/transactd/documents/install_plugin.html)
+- [Transactd Plugin 3.7.2 or later](http://www.bizstation.jp/en/transactd/documents/install_plugin.html)
 
 ### Client
 - [Transactd PHP Clinet](http://www.bizstation.jp/en/transactd/documents/install_guide_php.html)

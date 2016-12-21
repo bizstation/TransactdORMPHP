@@ -15,6 +15,7 @@ use BizStation\Transactd\GroupQuery;
 use BizStation\Transactd\RecordsetQuery;
 use BizStation\Transactd\Count;
 use BizStation\Transactd\Query;
+use BizStation\Transactd\BtrVersions;
 use Transactd\Model;
 use Transactd\IOException;
 use Transactd\Collection;
@@ -41,7 +42,7 @@ class Cust extends Model
     }
     public static function creating($user)
     {
-        echo 'Cust creating called user->id = '.$user->id.PHP_EOL;
+        //echo 'Cust creating called user->id = '.$user->id.PHP_EOL;
         return false;
     }
     
@@ -76,7 +77,7 @@ class Customer extends Model
     }
     public static function created($user)
     {
-        echo 'Customer created called user->id = '.$user->id.PHP_EOL;
+        //echo 'Customer created called user->id = '.$user->id.PHP_EOL;
     }
     
     public function scopeParent($q, $parent)
@@ -167,7 +168,7 @@ class Follower extends Model
     public $timestamps = false;
     public static function creating($folower)
     {
-        echo 'Follower creating called  folower->following_id = '.$folower->following_id.PHP_EOL;
+        //echo 'Follower creating called  folower->following_id = '.$folower->following_id.PHP_EOL;
         return true;
     }
     
@@ -309,7 +310,7 @@ function init()
 {
     class_alias('Transactd\DatabaseManager', 'DB');
     try {
-        DB::connect(URI, URI);
+        DB::connect(URI, URI, 'default', true);
         DB::connect(URIQ, null, 'q2');
         $users = User::keyValue(20001)->where('id', '>', 20000);
         $users->delete();
@@ -437,10 +438,12 @@ function makeGrpData($db)
         checkStat($tb);
     }
 }
+$mysql55 = false;
 
 function createTestData()
 {
     try {
+
         echo PHP_EOL.'URI='.URI.PHP_EOL;
         $db = new Database();
         $db->create(URI);
@@ -453,6 +456,13 @@ function createTestData()
         
         $db->open(URI, Transactd::TYPE_SCHEMA_BDF, Transactd::TD_OPEN_NORMAL);
         checkStat($db);
+        
+        $vv = new BtrVersions();
+        $db->getBtrVersion($vv);
+        $server_ver = $vv->version(1);
+        $GLOBALS['$mysql55'] = ($server_ver->majorVersion === 5) && ($server_ver->minorVersion === 5) 
+                    /*&& (chr($server_ver->type) == 'M')*/;
+        
         $def = $db->dbDef();
         $tableid = 1;
         // customers
@@ -516,7 +526,9 @@ function createTestData()
         addField($def, $tableid, 'followed_id', Transactd::ft_uinteger, 4);
         addField($def, $tableid, 'note', Transactd::ft_myvarbinary, 30);
         addField($def, $tableid, 'updated_at', Transactd::ft_mytimestamp, 7);
-        addField($def, $tableid, 'created_at', Transactd::ft_mytimestamp, 7);
+        if (!$GLOBALS['$mysql55']) {
+            addField($def, $tableid, 'created_at', Transactd::ft_mytimestamp, 7);
+        }
         $keynum = 0;
         $kd = $def->insertKey($tableid, $keynum);
         $kd->segment(0)->fieldNum = 0;
@@ -751,6 +763,9 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     
     public function testTimeStamp()
     {
+        if ($GLOBALS['$mysql55']) {
+            return;
+        }
         $this->doTestTimeStamp();
         $this->showMemoryUsage();
     }
@@ -1054,7 +1069,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     {
         $s = Customer::index(0)->keyValue(1)->where('id', '>=', 1)
             ->where('id', '<=', 100)->queryDescription();
-        echo PHP_EOL.($s);
+        //echo PHP_EOL.($s);
 
         $cr = Customer::index(0)->keyValue(1)->where('id', '>=', 1)
             ->where('id', '<=', 100)->cursor();
@@ -1663,8 +1678,11 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $this->showMemoryUsage();
     }
     
-        public function testUTCCObj()
+    public function testUTCCObj()
     {
+        if ($GLOBALS['$mysql55']) {
+            return;
+        }
         $tb = DB::master()->openTable("customers");
         $tb->seekFirst();
         $this->assertEquals($tb->stat(), 0);
@@ -1700,10 +1718,9 @@ class TransactdTest extends PHPUnit_Framework_TestCase
             $this->assertEquals(1, 0);
             DB::abortTrn();
         }
-        
+        sleep(1);
         $this->showMemoryUsage();
-
-        }
+    }
 
     public function testJson()
     {

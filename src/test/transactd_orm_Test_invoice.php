@@ -16,6 +16,7 @@ use Transactd\QueryExecuter;
 use Transactd\IOException;
 use Transactd\Model;
 use Transactd\Collection;
+use Transactd\Serializer;
 
 function getHost()
 {
@@ -380,8 +381,13 @@ class DailySummary extends Model
 class InvoiceAmount
 {
     use AmountBase;
-    
+    use Serializer;
     private $oldBlance = null;
+ 
+    public function __construct()
+    {
+        $this->className = get_called_class();
+    }
     
     public function difference()
     {
@@ -533,10 +539,10 @@ class Invoice extends Model
         return $it;
     }
     
-    private function updateBalanceAmount($it, $difference)
+    private function updateBalanceAmount($difference)
     {
         if ($difference !== 0) {
-            $it->next();
+            $it = $this->serverCursor(1, QueryExecuter::SEEK_GREATER);
             try {
                 $it->setTimestampMode(Transactd::TIMESTAMP_VALUE_CONTROL);
                 foreach($it as $inv) {
@@ -576,8 +582,6 @@ class Invoice extends Model
         if ($forceInsert) {
             $this->items->renumber('row');
             $it->insert($this);
-            $it = $this->serverCursor(1, QueryExecuter::SEEK_EQUAL);
-            $it->validOrFail();
         }else {
             $it = $this->serverCursor(1, QueryExecuter::SEEK_EQUAL);
             $it->validOrFail();
@@ -585,7 +589,8 @@ class Invoice extends Model
             $it->update($this);
         }
         $this->items->save();
-        $this->updateBalanceAmount($it, $this->amount->difference());
+        
+        $this->updateBalanceAmount($this->amount->difference());
         InvoiceItem::$handler->onEnd();
     }
     
@@ -597,7 +602,7 @@ class Invoice extends Model
         $difference = $this->amount->total();
         $this->items->delete();
         $it->delete();
-        $this->updateBalanceAmount($it, 0 - $difference);
+        $this->updateBalanceAmount(0 - $difference);
         InvoiceItem::$handler->onEnd();
     }
         
@@ -633,10 +638,10 @@ class Invoice extends Model
             DB::beginTrn(Transactd::MULTILOCK_GAP);
             $this->save();
             DB::commit();
-            Benchmark::showTimeSec(true, ': Save invoice id = '. $this->id. ' items = ' . $this->items->count());
+            //Benchmark::showTimeSec(true, ': Save invoice id = '. $this->id. ' items = ' . $this->items->count());
         } catch (Exception $e) {
             DB::rollBack(); 
-            Benchmark::showTimeSec(true, ': Save invoice id = '. $this->id. ' items = ' . $this->items->count());
+            //Benchmark::showTimeSec(true, ': Save invoice id = '. $this->id. ' items = ' . $this->items->count());
             throw $e;
         }
     }
@@ -649,10 +654,10 @@ class Invoice extends Model
             DB::beginTrn(Transactd::MULTILOCK_GAP);
             $this->delete();
             DB::commit();  
-            Benchmark::showTimeSec(true, ': Delete invoice id = '. $this->id. ' items = ' . $this->items->count());
+            //Benchmark::showTimeSec(true, ': Delete invoice id = '. $this->id. ' items = ' . $this->items->count());
         } catch (Exception $e) {
             DB::rollBack(); 
-            Benchmark::showTimeSec(true, ': Delete invoice id = '. $this->id. ' items = ' . $this->items->count());
+            //Benchmark::showTimeSec(true, ': Delete invoice id = '. $this->id. ' items = ' . $this->items->count());
             throw $e;
         }
     }
@@ -750,6 +755,10 @@ class TransactdTest extends PHPUnit_Framework_TestCase
 {
     private function sleep()
     {
+        if (DB::master() === null || DB::slave() === null) {
+            return;
+        }
+            
         if (DB::master()->uri() !== DB::slave()->uri()) {
             usleep(WAIT_UTIME);
         }
@@ -805,6 +814,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $inv->addPaymentLine(4579, 'Cash');
         $inv->saveWithTransaction();
         $this->sleep();
+        
         //Stock
         $stock = Stock::find('APPLE1');
         $this->assertEquals($stock->quantity , 108);
@@ -832,6 +842,9 @@ class TransactdTest extends PHPUnit_Framework_TestCase
     {
         Invoice::clear();
         $inv = Invoice::find(2);
+        $inv->items;
+        $json = $inv->toJson();
+        $inv = Invoice::fromJson($json);
         $inv->items[1]->amount = 20000; //10000 -> 20000
         $inv->saveWithTransaction();
         $this->sleep();

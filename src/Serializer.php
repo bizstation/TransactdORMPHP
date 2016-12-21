@@ -10,6 +10,11 @@ trait Serializer
      */
     protected $className;
     
+    public function getClassName()
+    {
+        return $this->className;
+    }
+    
     /**
      * Return a JSON text of this model
      *
@@ -39,8 +44,20 @@ trait Serializer
     public function assign($src)
     {
         if (is_object($src)) {
+            $hasCollection = false;
             foreach ($src as $key => $v) {
-                $this->{$key} = static::chengeObjectType($v);
+                $this->{$key} = static::chengeObjectType($v, $this, $key);
+                if ($this->{$key} instanceof Collection) {
+                    $hasCollection = true;
+                }
+            }
+            if ($hasCollection) {
+                foreach ($src as $key => $v) {
+                    if ($this->{$key} instanceof Collection) {
+                        $this->{$key}->setRelation($this->{$key}());
+                        $this->{$key}->setParent($this);
+                    }
+                }
             }
             return $this;
         }
@@ -67,18 +84,22 @@ trait Serializer
      * @param object $v
      * @return object
      */
-    public static function chengeObjectType($v)
+    public static function chengeObjectType($v, $parent, $name)
     {
         if (is_object($v)) {
             if (array_key_exists('className', $v) === true) {
                 $tmp = $v->{'className'};
-                return $tmp::createInstance($v);
+                $obj = $tmp::createInstance($v);
+                return $obj;
+            } elseif (property_exists($v, '0')) {
+                $v = (array) $v;
             }
-        } elseif (is_array($v)) {
+        } 
+        if (is_array($v)) {
             $ar = array();
             foreach ($v as $v1) {
-                if (is_array($v1) && array_key_exists('className', $v1) === true) {
-                    $tmp = $v1['className'];
+                if (is_object($v1) && array_key_exists('className', $v1) === true) {
+                    $tmp = $v1->{'className'};
                     array_push($ar, $tmp::createInstance($v1));
                 } else {
                     array_push($ar, $v1);
@@ -104,8 +125,11 @@ trait Serializer
             if (is_object($value) === true) {
                 if ($value instanceof Collection) {
                     $s .= $value->toString();
+                } elseif (property_exists($value, 'className')) {
+                    $name = $value->getClassName();
+                    $s .= $name::serialize($value);
                 } else {
-                    $s .= Model::serialize($value);
+                    $s .= self::serialize($value);
                 }
             } else {
                 $s .= json_encode($value);
@@ -114,7 +138,7 @@ trait Serializer
         }
         return substr($s, 0, -1).'}';
     }
-
+    
     /**
      * Deserializes from JSON string.
      *
@@ -124,7 +148,7 @@ trait Serializer
     public static function deSerialize($json)
     {
         $obj = json_decode($json, false);
-        return static::chengeObjectType($obj);
+        return static::chengeObjectType($obj, null, null);
     }
     
     /**
