@@ -531,7 +531,7 @@ class Invoice extends Model
     private function readBaseBalance()
     {
         $this->baseBalance = 0;
-        $it = Invoice::serverCursor(1, QueryExecuter::SEEK_LESSTHAN);
+        $it = Invoice::serverCursor(1, QueryExecuter::SEEK_LESSTHAN, Transactd::ROW_LOCK_S);
         if ($it->valid()) {
             $inv = $it->current();
             if ($inv->customer_id === $this->customer_id) {

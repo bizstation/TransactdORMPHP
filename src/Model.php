@@ -763,7 +763,7 @@ class Model
      */
     public static function index($index)
     {
-       return self::queryExecuter()->index($index);
+        return self::queryExecuter()->index($index);
     }
     
     /**
@@ -915,7 +915,7 @@ class Model
     
     /**
      * Update this cache.
-     * 
+     *
      * @param type $clear
      */
     public function updateCache($clear = false)
@@ -929,10 +929,11 @@ class Model
      * @param int $index
      * @param int $op
      * @param int $lockBias
+     * @param bool $forword Choicing ForwordIterator or ReverseIterator.
      * @return \Transactd\TableIterator
      * @throw IOException
-     */   
-    public function serverCursor($index = null, $op = QueryExecuter::SEEK_EQUAL, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
+     */
+    public function serverCursor($index = null, $op = QueryExecuter::SEEK_EQUAL, $lockBias = Transactd::LOCK_BIAS_DEFAULT, $forword = true)
     {
         $qe = self::queryExecuterQuick();
         $tb = $qe->getWritableTable();
@@ -945,7 +946,7 @@ class Model
             $cPtr = table_fields($tb->cPtr, transactd::FETCH_RECORD_INTO, null,  null);
             Record_setValueByObject($cPtr, $this);
         }
-        return QueryExecuter::getIterator($tb, $op, $forword, $lockBias); 
+        return QueryExecuter::getIterator($tb, $op, $lockBias, $forword);
     }
     
     /**

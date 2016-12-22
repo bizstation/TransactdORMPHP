@@ -941,7 +941,7 @@ class QueryExecuter
      * @return \Transactd\TableIterator
      * @throws \InvalidArgumentException
      */
-    public static function getIterator($tb, $op = 0, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
+    public static function getIterator($tb, $op = 0, $lockBias = Transactd::LOCK_BIAS_DEFAULT, $forword = true)
     {
         switch ($op) {
             case self::SEEK_FIRST:
@@ -975,15 +975,16 @@ class QueryExecuter
      * 
      * @param int $op Table::SEEK_EQUAL to Table::SEEK_LESSTHAN
      * @param int $lockBias
+     * @param bool $forword Choicing ForwordIterator or ReverseIterator.
      * @return \BizStation\Transactd\TableIterator
      * @throw IOException
      */
-    public function serverCursor($op = self::SEEK_EQUAL, $forword = true, $lockBias = Transactd::LOCK_BIAS_DEFAULT)
+    public function serverCursor($op = self::SEEK_EQUAL, $lockBias = Transactd::LOCK_BIAS_DEFAULT, $forword = true)
     {
         if ($op > QueryExecuter::SEEK_LAST) {
             $this->copyKeyValues($this->tb, $this->tbr);
         }
-        return self::getIterator($this->tb, $op, $forword, $lockBias);    
+        return self::getIterator($this->tb, $op, $lockBias, $forword);    
     }
 
     private function prepareCreate($attributes)
@@ -1379,7 +1380,7 @@ class QueryExecuter
         $this->setKeyValues($values, $tb);
         $count = count($values);
         $fdnames = $this->keyFieldNameCache[$tb->keyNum()];
-        $it = self::getIterator($tb, self::SEEK_GREATER_OREQUAL, true, Transactd::LOCK_BIAS_DEFAULT); 
+        $it = self::getIterator($tb, self::SEEK_GREATER_OREQUAL, Transactd::LOCK_BIAS_DEFAULT, true); 
         while ($it->valid()) {
             $falg = true;
             for ($i = 0; $i < $count; ++$i) {
