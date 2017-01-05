@@ -502,10 +502,10 @@ class QueryExecuter
      * Search results the registration of the chunk.
      *
      * @param int $n Count of a chunk.
-     * @param string $func Handler function name.
+     * @param callable $func Handler function name.
      * @return bool
      */
-    public function chunk($n, $func)
+    public function chunk($n, callable $func)
     {
         //Execute query at each chunk.
         $this->take($n);
@@ -1674,7 +1674,7 @@ class QueryExecuter
      *
      * @return \Transactd\QueryExecuter
      */
-    public function noBreakRecject()
+    public function noBreakReject()
     {
         $this->q->reject(0xffff);
         return $this;

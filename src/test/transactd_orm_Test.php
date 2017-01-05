@@ -665,6 +665,15 @@ if (!createTestData()) {
 
 init();
 
+function getCount($records)
+{
+    $n = 0;
+    foreach($records as $record) {
+        ++$n;
+    }
+    return $n;
+}
+
 class TransactdTest extends PHPUnit_Framework_TestCase
 {
    
@@ -1061,6 +1070,9 @@ class TransactdTest extends PHPUnit_Framework_TestCase
                     $this->assertEquals($customers[0]->id, $n * 10 + 1);
                     $n++;
                 });
+        $this->assertEquals($n, 10);
+        $n = Customer::index(0)->keyValue(1)->where('id', '>=', 1)
+            ->where('id', '<=', 100)->chunk(10, 'getCount');
         $this->assertEquals($n, 10);
         $this->showMemoryUsage();
     }
