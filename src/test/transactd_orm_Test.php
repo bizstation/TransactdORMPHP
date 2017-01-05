@@ -1743,7 +1743,7 @@ class TransactdTest extends PHPUnit_Framework_TestCase
         $c2->name = '感じ';
         $json = $c2->toJson();
         // decode from json to stdClass
-        $c = Model::deSerialize($json);
+        $c = Model::deSerializeFromJson($json);
         $this->assertEquals($c->name, '感じ');
         $this->assertEquals($json, $c->toString());
         $this->showMemoryUsage();

@@ -22,7 +22,7 @@ trait Serializer
      */
     public function toString()
     {
-        return static::serialize($this);
+        return static::serializeToJson($this);
     }
     
     /**
@@ -116,7 +116,7 @@ trait Serializer
      * @param object $obj
      * @return string
      */
-    public static function serialize($obj)
+    public static function serializeToJson($obj)
     {
         $s = '{';
         $props =  get_object_vars($obj);
@@ -127,9 +127,9 @@ trait Serializer
                     $s .= $value->toString();
                 } elseif (property_exists($value, 'className')) {
                     $name = $value->getClassName();
-                    $s .= $name::serialize($value);
+                    $s .= $name::serializeToJson($value);
                 } else {
-                    $s .= self::serialize($value);
+                    $s .= self::serializeToJson($value);
                 }
             } else {
                 $s .= json_encode($value);
@@ -145,7 +145,7 @@ trait Serializer
      * @param string $json
      * @return object
      */
-    public static function deSerialize($json)
+    public static function deSerializeFromJson($json)
     {
         $obj = json_decode($json, false);
         return static::chengeObjectType($obj, null, null);
@@ -159,6 +159,6 @@ trait Serializer
      */
     public static function fromJson($json)
     {
-        return static::deSerialize($json);
+        return static::deSerializeFromJson($json);
     }
 }

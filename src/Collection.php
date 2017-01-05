@@ -388,7 +388,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
      * @param object $obj
      * @return string
      */
-    private static function serialize($obj)
+    private static function serializeToJson($obj)
     {
         $s = '{';
         $s .= '"saveOprions":'.$obj->saveOprions.', "className":'.json_encode($obj->className).', "array":{';
@@ -397,9 +397,9 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
             $s .= '"'.$key.'":';
             if (is_object($value) === true) {
                 if ($value instanceof Collection) {
-                    $s .= Collection::serialize($value);
+                    $s .= Collection::serializeToJson($value);
                 } else {
-                    $s .= Model::serialize($value);
+                    $s .= Model::serializeToJson($value);
                 }
             } else {
                 $s .= json_encode($value);
