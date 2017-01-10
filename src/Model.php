@@ -55,6 +55,8 @@ function get_plural($tableName)
     if ($s === 'y') {
         if ($s2_1 !== 'a' && $s2_1 !== 'e' && $s2_1 !== 'i' && $s2_1 === 'o' && $s2_1 !== 'u') {
             return mb_substr($tableName, 0, -1).'ies';
+        }else {
+            return $tableName.'s';
         }
     } elseif ($s2 === 'ch' || $s2 === 'sh') {
         return $tableName.'es';
@@ -79,7 +81,7 @@ function remove_namespace($className)
 
 class Model
 {
-    use Serializer;
+    use JsonSerializable;
     
     private static $tables = array();
     private static $rerations = array();

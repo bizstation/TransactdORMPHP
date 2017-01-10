@@ -4,7 +4,7 @@ namespace Transactd;
 
 $dir = __DIR__ . '/';
 require_once 'transactd.php';
-require_once($dir.'Serializer.php');
+require_once($dir.'JsonSerializable.php');
 require_once($dir.'DatabaseManager.php');
 require_once($dir.'Model.php');
 require_once($dir.'Collection.php');

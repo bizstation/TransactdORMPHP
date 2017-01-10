@@ -16,7 +16,7 @@ use Transactd\QueryExecuter;
 use Transactd\IOException;
 use Transactd\Model;
 use Transactd\Collection;
-use Transactd\Serializer;
+use Transactd\JsonSerializable;
 
 function getHost()
 {
@@ -339,7 +339,7 @@ class Stock extends Model
 }
 
 
-Trait AmountBase
+Trait AmountTrait
 {
     public $sales = 0;
     public $tax = 0;
@@ -367,7 +367,7 @@ Trait AmountBase
 
 class DailySummary extends Model
 {
-    use AmountBase;
+    use AmountTrait;
     protected static $guarded = [];
     protected static $table = 'daily_summaries';
     static protected $aliases  = ['slaes_amount' => 'sales', 'tax_amount' => 'tax', 'payment_amount' => 'payment'];
@@ -380,8 +380,8 @@ class DailySummary extends Model
 
 class InvoiceAmount
 {
-    use AmountBase;
-    use Serializer;
+    use AmountTrait;
+    use JsonSerializable;
     private $oldBlance = null;
  
     public function __construct()

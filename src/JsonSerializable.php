@@ -2,7 +2,7 @@
 
 namespace Transactd;
 
-trait Serializer
+trait JsonSerializable
 {
     /**
      *

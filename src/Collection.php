@@ -7,7 +7,7 @@ use Transactd\Relation;
 
 class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
 {
-    use \Transactd\Serializer;
+    use \Transactd\JsonSerializable;
     
     private $array;
     private $rel = null;
@@ -383,7 +383,7 @@ class Collection implements \ArrayAccess, \Countable, \IteratorAggregate
     
     /**
      * Serializes to JSON string.
-     * Orverride trait Serializer
+     * Orverride trait JsonSerializable
      *
      * @param object $obj
      * @return string
